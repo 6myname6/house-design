@@ -19,7 +19,7 @@
     <artifactId>house-design-backend</artifactId>
     <version>1.0.0</version>
     <name>house-design-backend</name>
-    <description>房屋装修设计网站后端（复现版）</description>
+    <description>房屋装修设计网站后端</description>
 
     <properties>
         <java.version>17</java.version>
