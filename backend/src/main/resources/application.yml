@@ -12,18 +12,8 @@ spring:
     username: root
     # 本机实测 MySQL root 密码是 123456：export DB_PASSWORD=123456
     # 启动命令：export DB_PASSWORD=123456 && unset SERVER__PORT && bash mvn.sh spring-boot:run
-    password: ${DB_PASSWORD:password}
+    password:  ${DB_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
-  jpa:
-    hibernate:
-      # update：启动时按实体自动建表/补列（增量式，不删旧数据）。开发期最方便
-      ddl-auto: update
-    show-sql: false
-    properties:
-      hibernate:
-        format_sql: true
-        dialect: org.hibernate.dialect.MySQLDialect
-    open-in-view: false
   servlet:
     multipart:
       max-file-size: 20MB
@@ -46,6 +36,21 @@ app:
     base-url: "https://open.bigmodel.cn/api/paas/v4"
     image-model: "cogview-4"
     timeout-seconds: 300
+
+# MyBatis-Plus 配置
+mybatis-plus:
+  configuration:
+    # 下划线列名 <-> 驼峰属性自动映射（t_user.created_at -> createdAt）
+    map-underscore-to-camel-case: true
+    # 开发期在控制台打印 SQL，方便排查；上线可移除或改日志级别
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    banner: false
+    db-config:
+      # 主键策略：数据库自增（对应 t_user.id AUTO_INCREMENT）
+      id-type: auto
+      # 逻辑删除（后续若引入 deleted 字段时启用）
+      # logic-delete-field: deleted
 
 logging:
   level:

@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   筑梦家 HouseDesign · 复现版后端 pom
-  版本号刻意保持与 Spring Boot 3.2.5 对齐（原项目同款），JPA 自动建表依赖实体扫描。
+  版本号刻意保持与 Spring Boot 3.2.5 对齐（原项目同款）。
+  持久层使用 MyBatis-Plus：表结构由 db/schema.sql 手工维护，不再依赖 ORM 自动建表。
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -31,10 +32,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
-        <!-- JPA：实体 + Repository + 自动建表 -->
+        <!-- MyBatis-Plus：通用 Mapper + 条件构造器（Spring Boot 3 专用 starter） -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+            <version>3.5.7</version>
         </dependency>
         <!-- Bean Validation：@NotBlank 等入参校验 -->
         <dependency>
@@ -83,6 +85,10 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
         </dependency>
     </dependencies>
 
