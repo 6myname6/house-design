@@ -1,0 +1,52 @@
+# 筑梦家 · 复现版后端配置
+# 安全规范：密码/密钥一律走环境变量注入（${VAR:默认值}），绝不硬编码进代码库
+server:
+  port: 8080
+
+spring:
+  application:
+    name: house-design-backend
+  datasource:
+    # createDatabaseIfNotExist=true：库不存在时自动创建，无需手工建库
+    url: jdbc:mysql://localhost:3306/house_design?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
+    username: root
+    # 本机实测 MySQL root 密码是 123456：export DB_PASSWORD=123456
+    # 启动命令：export DB_PASSWORD=123456 && unset SERVER__PORT && bash mvn.sh spring-boot:run
+    password: ${DB_PASSWORD:password}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      # update：启动时按实体自动建表/补列（增量式，不删旧数据）。开发期最方便
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+    open-in-view: false
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 50MB
+
+# 应用自定义配置（后续 P1-⑤ 由 AppProperties 用 @ConfigurationProperties 绑定）
+app:
+  # 文件存储根目录（设计图、生成结果等）
+  storage:
+    location: ./storage
+    public-base-url: http://localhost:8080/files
+  # JWT 配置
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-change-me-please-set-env}
+    expiration-ms: 604800000  # 7 天
+  # AI 图生3D 配置（无 key 时 Factory 自动回退 mock，链路照常可用）
+  ai:
+    provider: zhipu
+    api-key: ${ZHIPU_API_KEY}
+    base-url: "https://open.bigmodel.cn/api/paas/v4"
+    image-model: "cogview-4"
+    timeout-seconds: 300
+
+logging:
+  level:
+    com.housedesign: INFO
