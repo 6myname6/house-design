@@ -35,4 +35,5 @@ public class User {
     /** 创建时间（数据库 DEFAULT CURRENT_TIMESTAMP 自动生成，不可更新） */
     @TableField("created_at")
     private LocalDateTime createdAt;
+
 }
