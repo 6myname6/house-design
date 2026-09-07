@@ -1,8 +1,8 @@
 package com.housedesign.Service;
 
-import com.housedesign.dto.LoginInfo;
-import com.housedesign.dto.LoginRequest;
-import com.housedesign.dto.RegisterRequest;
+import com.housedesign.dto.request.LoginRequest;
+import com.housedesign.dto.request.RegisterRequest;
+import com.housedesign.dto.response.LoginInfoResponse;
 
 public interface LoginService {
 
@@ -10,5 +10,5 @@ public interface LoginService {
     Long register(RegisterRequest registerRequest);
 
     // 登录接口
-    LoginInfo login(LoginRequest loginRequest);
+    LoginInfoResponse login(LoginRequest loginRequest);
 }

@@ -29,8 +29,11 @@ public class DesignProject {
     /** 项目描述 */
     private String description;
 
-    /** 风格 code（对应 DesignStyle 枚举 code，非法/空回退「现代简约」） */
+    /** 用户自定义风格要求（自由文本，如「原木色、温馨、多绿植」） */
     private String style;
+
+    /** 预设风格 code（DesignStyle 枚举 code，如 modern-minimalist；与 style 至少填一个） */
+    private String styleLabel;
 
     /** 设计图相对路径（storage 下） */
     private String designImagePath;

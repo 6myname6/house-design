@@ -4,6 +4,7 @@
 
 > 本项目为个人**全栈项目**：从零重建一套 Spring Boot 3 + Vue 3 + Three.js 的完整应用，用于沉淀全栈工程能力。
 ---
+> 当前状态：**后端为主**，前端尚未开始。详见下方开发进度。
 
 ## 开发进度
 
@@ -12,9 +13,9 @@
 | 阶段 | 内容 | 状态 |
 | --- | --- | --- |
 | P0 | 环境搭建 + 基线功能验证 | 完成 |
-| P1 | 后端地基（工程骨架 / 统一响应 / 实体建表 / JWT / 配置） | 🔨 P1-1 骨架完成，P1-2 进行中 |
-| P2 | 认证 + 文件上传模块 | 待开始 |
-| P3 | 项目 CRUD + AI 生成异步链路（含 mock 降级） | 待开始 |
+| P1 | 后端地基（工程骨架 / 统一响应 / 实体建表 / JWT / 配置） | 完成 |
+| P2 | 认证 + 文件上传模块 | 完成 |
+| P3 | 项目 CRUD + AI 生成异步链路（含 mock 降级） | 🔨 进行中（项目创建/列表已完成，详情/删除/AI 生成待做） |
 | P4 | Vue3 前端 + Three.js 3D 查看器 | 待开始 |
 | P5 | 真实 AI 接入 + 社区模块 + 打包部署 | 待开始 |
 
@@ -25,31 +26,33 @@
 | 端 | 技术 | 用途 |
 | --- | --- | --- |
 | 后端 | Spring Boot 3.2.5 | Web 服务 / 内嵌 Tomcat |
-| 后端 | Spring Data JPA (Hibernate) | ORM，`ddl-auto=update` 自动建表 |
-| 后端 | Spring Security 风格 JWT（jjwt 0.11.5） | 登录鉴权 + 接口归属校验 |
-| 后端 | Spring WebFlux (WebClient) | 异步调用外部 AI 服务 |
+| 后端 | MyBatis-Plus | ORM，`BaseMapper` 通用 CRUD + LambdaQueryWrapper |
+| 后端 | JWT（jjwt） | 登录鉴权 + 接口归属校验（拦截器 + ThreadLocal） |
 | 后端 | MySQL 8 / BCrypt | 数据存储 / 密码加密 |
-| 前端 | Vue 3 + Vite 5 + Element Plus | SPA 界面 |
-| 前端 | Pinia / Vue Router / Axios | 状态管理 / 路由 / 请求封装 |
-| 前端 | Three.js 0.166 | 3D 场景构建与交互 |
-| AI | 智谱 CogView-4（可插拔） | 户型图 → 写实效果图 |
+| 后端 | Spring WebClient（规划中） | 异步调用外部 AI 服务 |
+| 前端 | Vue 3 + Vite 5 + Element Plus（待开发） | SPA 界面 |
+| 前端 | Pinia / Vue Router / Axios（待开发） | 状态管理 / 路由 / 请求封装 |
+| 前端 | Three.js（待开发） | 3D 场景构建与交互 |
+| AI | 智谱 CogView-4（可插拔，规划中） | 户型图 → 写实效果图 |
 
 ---
 
 ## 核心功能
 
 - **账号**：注册 / 登录 / 个人信息，JWT 鉴权 + 密码 BCrypt，支持改昵称与头像
-- **设计项目**：创建 / 列表 / 详情 / 删除（一个项目 = 一张设计图 + 一种装修风格，图源支持户型图 / CAD 导出 / 手绘稿）
-- **AI 生成**：一键生成 3D 效果，**异步任务 + 状态轮询**；结果含效果图与 3D 场景
-- **3D 查看**：旋转 / 缩放 / 平移 / 自动环视；5 种装修风格一键切换
-- **社区「装修小圈」**：发帖 / 点赞（唯一约束防重复）/ 评论（冗余计数器），仅可操作自己的数据
-- **文件**：统一上传接口（头像、帖子图片）
+- **风格**：内置 5 种装修风格（现代简约 / 奶油轻法式 / 意式轻奢 / 新中式 / 原木风），`DesignStyle` 枚举为单一数据源，`GET /api/styles` 提供风格列表
+- **设计项目**：创建（含设计图上传，支持「用户自定义风格要求 + 预设风格标签」双输入）/ 列表（仅本人，倒序）；详情 / 删除规划中
+- **AI 生成**（规划中）：一键生成 3D 效果，异步任务 + 状态轮询；结果含效果图与 3D 场景
+- **3D 查看**（规划中）：旋转 / 缩放 / 平移 / 自动环视；一键切换风格
+- **社区「装修小圈」**（规划中）：发帖 / 点赞（唯一约束防重复）/ 评论（冗余计数器），仅可操作自己的数据
+- **文件**：统一上传接口（头像、帖子图片、设计图），扩展名白名单 + UUID 重命名
 
 ## 架构亮点
 
-- **AI 服务可插拔（策略 + 工厂）**：定义 `ImageTo3DService` 接口，`ImageTo3DServiceFactory` 按配置的 `provider` 选择实现——`mock`（内置程序化户型重建，免 Key 全链路可用）/ `zhipu`（智谱 CogView 文生图）/ `meshy` 等通用外部图生 3D。**未配置 API Key 时自动回退 mock**，保证"即开即用"。
-- **生成任务异步状态机**：`PENDING → PROCESSING → SUCCEEDED / FAILED`，异步线程池处理 + 前端轮询状态。
-- **资源归属校验**：所有项目 / 帖子 / 点赞按 `userId` 隔离，越权返回 403。
+- **JWT 鉴权 + ThreadLocal 用户上下文**：`JwtInterceptor` 校验 token 并写入 `UserContext`，`afterCompletion` 清理防止线程复用串号；资源归属一律从 `UserContext.getUserId()` 获取，杜绝前端伪造。
+- **风格枚举单一数据源**：`DesignStyle` 一个枚举同时承担入参校验（code 反查）、响应展示（label）、AI 提示词（prompt）三重职责；`@JsonFormat(OBJECT)` 序列化 + `@JsonIgnore` 屏蔽 prompt，防提示词泄露与注入。
+- **文件存储抽象**：`FileStorageService` 接口 + `LocalFileStorageServiceImpl` 磁盘实现，业务层只管传 URL；未来换 OSS 只换实现类，业务零改动。
+- **Controller 薄 / Service 厚**：Controller 只收参数、调服务、包 `Result`；校验、归属判断、事务全在 Service 层，职责清晰。
 - **安全配置零落地**：数据库密码、JWT 密钥、AI Key 全部经环境变量注入（`${VAR:default}`），不硬编码。
 
 ---
@@ -71,6 +74,8 @@ set DB_PASSWORD=你的MySQL密码
 export DB_PASSWORD=你的MySQL密码
 ```
 
+> ⚠️ 表结构变更后（如新增列），`CREATE TABLE IF NOT EXISTS` 不会修改已存在的表，需手动执行 `docs/数据库设计.md` 中的 ALTER 迁移语句。
+
 ### 2. 后端（默认 :8080）
 
 ```bash
@@ -78,9 +83,9 @@ cd backend
 mvn spring-boot:run
 ```
 
-启动后自动建表；设计图与生成结果存放于 `backend/storage/`。
+启动后需先执行 `backend/src/main/resources/db/house_design.sql` 建表；设计图与生成结果存放于 `backend/storage/`。
 
-### 3. 前端（默认 :5173）
+### 3. 前端（默认 :5173，待开发）
 
 ```bash
 cd frontend
@@ -90,7 +95,7 @@ npm run dev
 
 访问 http://localhost:5173 （已配置 `/api`、`/files` 代理到 8080）
 
-### 4. 接入真实 AI（可选）
+### 4. 接入真实 AI（可选，规划中）
 
 默认 `provider: mock`，零配置即可体验全流程。接智谱真实文生图：
 
@@ -108,15 +113,20 @@ export ZHIPU_API_KEY=你的Key
 HouseDesign/
 ├── backend/                      # Spring Boot 后端
 │   └── src/main/java/com/housedesign/
-│       ├── config/               # CORS / 异步 / 静态资源 / 属性绑定
-│       ├── common/               # 统一响应 Result、全局异常、工具
-│       ├── controller/ dto/ entity/ repository/
-│       ├── security/             # JWT 签发校验、当前用户解析、BCrypt
-│       └── service/              # 业务 + AI 可插拔服务层
-└── frontend/                     # Vue3 前端
-    └── src/
-        ├── api/ router/ store/ three/
-        ├── components/ views/
+│       ├── config/               # WebConfig（静态资源映射 / 拦截器注册）
+│       ├── common/               # 统一响应 Result、UserContext（ThreadLocal）
+│       ├── controller/           # Controller（薄：收参 / 调服务 / 包 Result）
+│       ├── dto/                  # request / response DTO（不直接用实体收发）
+│       ├── entity/               # MyBatis-Plus 实体（DesignProject / User / ...）
+│       ├── interceptor/          # JwtInterceptor（token 校验 + 用户上下文）
+│       ├── mapper/               # MyBatis-Plus BaseMapper 接口
+│       ├── Service/              # 业务接口 + impl 实现
+│       └── util/                 # JwtUtil 等工具
+│   └── src/main/resources/
+│       ├── application.yml       # 配置（环境变量注入）
+│       └── db/house_design.sql   # 建表脚本
+├── docs/                         # 接口文档 / 数据库设计 / 面试素材库
+└── frontend/                     # Vue3 前端（待开发）
 ```
 
 ---
@@ -126,11 +136,13 @@ HouseDesign/
 | 表 | 说明 | 关键设计 |
 | --- | --- | --- |
 | `t_user` | 用户 | BCrypt 密码 |
-| `t_design_project` | 设计项目 | `user_id` 归属 |
+| `t_design_project` | 设计项目 | `user_id` 归属；`style`（自定义要求）+ `style_label`（预设 code）双字段 |
 | `t_generated_model` | AI 生成任务与结果 | 状态枚举 + `project_id` |
 | `t_post` | 社区帖子 | `comment_count` 冗余计数器 |
 | `t_post_comment` | 评论 | 扁平结构 |
 | `t_post_like` | 点赞 | `UNIQUE(post_id, user_id)` 防重复赞 |
+
+详见 [docs/数据库设计.md](docs/数据库设计.md) 与 [docs/接口文档.md](docs/接口文档.md)。
 
 ---
 

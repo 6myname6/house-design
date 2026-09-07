@@ -29,4 +29,10 @@ public class Result<T> {
         result.message = message;
         return result;
     }
+
+    public static <T> Result<T> error(String message) {
+        Result<T> result = new Result<T>();
+        result.message = message;
+        return result;
+    }
 }

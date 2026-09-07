@@ -1,4 +1,4 @@
-package com.housedesign.dto;
+package com.housedesign.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Data
-public class LoginInfo {
+public class LoginInfoResponse {
     private Long id;
     private String token;
 }

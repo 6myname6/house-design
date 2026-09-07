@@ -2,9 +2,9 @@ package com.housedesign.Service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.housedesign.Service.LoginService;
-import com.housedesign.dto.LoginInfo;
-import com.housedesign.dto.LoginRequest;
-import com.housedesign.dto.RegisterRequest;
+import com.housedesign.dto.request.LoginRequest;
+import com.housedesign.dto.request.RegisterRequest;
+import com.housedesign.dto.response.LoginInfoResponse;
 import com.housedesign.entity.User;
 import com.housedesign.mapper.UserMapper;
 import com.housedesign.util.JwtUtil;
@@ -47,7 +47,7 @@ public class LoginServiceImpl implements LoginService {
     }
 
     @Override
-    public LoginInfo login(LoginRequest loginRequest) {
+    public LoginInfoResponse login(LoginRequest loginRequest) {
         // 1.根据用户名查询用户
         User user = userMapper.selectOne(
                 new LambdaQueryWrapper<User>().eq(User::getUsername, loginRequest.getUsername()));
@@ -59,7 +59,7 @@ public class LoginServiceImpl implements LoginService {
         // 生成 JWT 令牌
         String token;
         token = jwtUtil.createToken(user.getId(), user.getUsername());
-        return new LoginInfo(user.getId(), token);
+        return new LoginInfoResponse(user.getId(), token);
     }
 
 }
