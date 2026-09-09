@@ -15,6 +15,6 @@ public interface FileStorageService {
      * 
      * @param 可公开访问的URL
      */
-    String upload(MultipartFile file, String string);
+    String upload(MultipartFile file, String dir);
 
 }

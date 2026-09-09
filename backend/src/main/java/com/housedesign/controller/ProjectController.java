@@ -15,7 +15,9 @@ import com.housedesign.dto.response.ProjectResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 
 @Slf4j
 @RequestMapping("/api/projects")
@@ -51,6 +53,20 @@ public class ProjectController {
     @GetMapping()
     public Result<List<ProjectResponse>> list() {
         return Result.success(projectService.listMyProjects());
+    }
+
+    // 项目详情
+    @GetMapping("/{id}")
+    public Result<ProjectResponse> getProjectDetail(@PathVariable(value = "id") Long id) {
+
+        return Result.success(projectService.getProjectDetail(id));
+    }
+
+    // 删除任务
+    @DeleteMapping("/{id}")
+    public Result<String> delProject(@PathVariable(value = "id") Long id) {
+        projectService.delProject(id);
+        return Result.success("删除成功");
     }
 
 }

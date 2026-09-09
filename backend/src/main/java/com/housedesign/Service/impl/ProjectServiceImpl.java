@@ -8,6 +8,8 @@ import org.springframework.web.multipart.MultipartFile;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.housedesign.Service.FileStorageService;
 import com.housedesign.Service.ProjectService;
+import com.housedesign.common.BusinessException;
+import com.housedesign.common.Result;
 import com.housedesign.common.UserContext;
 import com.housedesign.dto.response.ProjectResponse;
 import com.housedesign.entity.DesignProject;
@@ -93,6 +95,27 @@ public class ProjectServiceImpl implements ProjectService {
         resp.setCreatedAt(project.getCreatedAt());
         resp.setUpdatedAt(project.getUpdatedAt());
         return resp;
+    }
+
+    @Override
+    public ProjectResponse getProjectDetail(Long id) {
+        Long userId = UserContext.getUserId();
+        DesignProject project = projectMapper.selectById(id);
+        // 不存在或不属于当前用户，统一 404（防越权访问与探测他人项目）
+        if (project == null || !project.getUserId().equals(userId)) {
+            throw new BusinessException(404, "项目不存在");
+        }
+        return toResponse(project);
+    }
+
+    @Override
+    public void delProject(Long id) {
+        Long userId = UserContext.getUserId();
+        DesignProject designProject = projectMapper.selectById(id);
+        if (designProject == null || !userId.equals(designProject.getUserId())) {
+            throw new BusinessException(404, "项目不存在!");
+        }
+        projectMapper.deleteById(id);
     }
 
 }

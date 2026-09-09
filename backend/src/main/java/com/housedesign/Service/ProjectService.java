@@ -29,4 +29,8 @@ public interface ProjectService {
      * 仅返回自己名下的项目。
      */
     List<ProjectResponse> listMyProjects();
+
+    ProjectResponse getProjectDetail(Long id);
+
+    void delProject(Long id);
 }

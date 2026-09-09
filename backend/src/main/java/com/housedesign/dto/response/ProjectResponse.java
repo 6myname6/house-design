@@ -1,6 +1,7 @@
 package com.housedesign.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -10,6 +11,7 @@ import java.time.LocalDateTime;
  * 不含 userId、designImagePath 等内部字段，避免泄露用户标识与存储路径。
  */
 @Data
+
 public class ProjectResponse {
 
     /** 项目 ID */
@@ -37,4 +39,5 @@ public class ProjectResponse {
     /** 更新时间 */
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime updatedAt;
+
 }
