@@ -43,6 +43,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
+        <!-- OpenAPI/Swagger：自动生成接口文档（Spring Boot 3 用 springdoc 2.x） -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.5.0</version>
+        </dependency>
         <!-- WebFlux：仅用于 WebClient 调外部 AI（轮询图片生成任务） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

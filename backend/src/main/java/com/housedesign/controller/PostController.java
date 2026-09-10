@@ -14,22 +14,45 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
+import java.util.List;
+
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
+
 @RequestMapping("/api/posts")
 @RequiredArgsConstructor
 @RestController
 @Slf4j
-// 发帖Controller
+// 装修小圈Controller
 public class PostController {
     private final PostService postService;
 
+    // 发表帖子
     @PostMapping()
     public Result<PostResponse> postApost(@RequestBody PostRequest postRequest) {
         // 防止内容图片都空
         if (postRequest.getContent() == null && postRequest.getImages() == null) {
             return Result.error("请确认您要发表的内容！");
         }
-        log.info("开始发表：{}", postRequest);
+        log.info("开始发表帖子：{}", postRequest);
         return Result.success(postService.postApost(postRequest));
+    }
+
+    // 帖子列表
+    @GetMapping()
+    public Result<List<PostResponse>> postList(@RequestParam(value = "mine", defaultValue = "false") boolean mine) {
+        log.info("显示帖子");
+        return Result.success(postService.postList(mine));
+    }
+
+    // 删除帖子
+    @DeleteMapping("/{id}")
+    public Result<String> deletePost(@PathVariable Long id) {
+        log.info("删除帖子：{}", id);
+        postService.deletePost(id);
+        return Result.success("删除成功");
     }
 
 }

@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.housedesign.Service.PostService;
 import com.housedesign.common.UserContext;
 import com.housedesign.dto.request.PostRequest;
@@ -63,5 +64,38 @@ public class PostServiceImpl implements PostService {
         postResponse.setLikedByMe(false);
         postResponse.setUserId(user.getId());
         return postResponse;
+    }
+
+    @Override
+    public List<PostResponse> postList(boolean mine) {
+
+        LambdaQueryWrapper<Post> wrapper = new LambdaQueryWrapper<>();
+        if (mine) {
+            Long userId = UserContext.getUserId();
+            wrapper.eq(Post::getUserId, userId)
+                    .orderByDesc(Post::getCreatedAt);
+            List<Post> posts = postMapper.selectList(wrapper);
+            return posts.stream().map(post -> toResponse(post, userMapper.selectById(post.getUserId()))).toList();
+        } else {
+            wrapper.orderByDesc(Post::getCreatedAt);
+            List<Post> posts = postMapper.selectList(wrapper);
+            return posts.stream().map(post -> toResponse(post, userMapper.selectById(post.getUserId()))).toList();
+        }
+
+    }
+
+    @Override
+    public void deletePost(Long id) {
+        // 检查帖子是否存在
+        Post post = postMapper.selectById(id);
+        if (post == null) {
+            throw new IllegalArgumentException("帖子不存在");
+        }
+        // 检查帖子是否属于当前用户
+        if (!post.getUserId().equals(UserContext.getUserId())) {
+            throw new IllegalArgumentException("只能删除自己的帖子！");
+        }
+        // 删除帖子
+        postMapper.deleteById(id);
     }
 }
