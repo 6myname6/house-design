@@ -6,6 +6,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.housedesign.Service.PostService;
 import com.housedesign.common.Result;
 import com.housedesign.dto.request.PostRequest;
+import com.housedesign.dto.response.LikeResult;
+import com.housedesign.dto.response.PageResult;
 import com.housedesign.dto.response.PostResponse;
 
 import lombok.RequiredArgsConstructor;
@@ -13,8 +15,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-
-import java.util.List;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,9 +42,11 @@ public class PostController {
 
     // 帖子列表
     @GetMapping()
-    public Result<List<PostResponse>> postList(@RequestParam(value = "mine", defaultValue = "false") boolean mine) {
+    public Result<PageResult<PostResponse>> postList(@RequestParam(value = "mine", defaultValue = "false") boolean mine,
+            @RequestParam(value = "pageNum", defaultValue = "1") int pageNum,
+            @RequestParam(value = "pageSize", defaultValue = "20") int pageSize) {
         log.info("显示帖子");
-        return Result.success(postService.postList(mine));
+        return Result.success(postService.postList(mine, pageNum, pageSize));
     }
 
     // 删除帖子
@@ -53,6 +55,14 @@ public class PostController {
         log.info("删除帖子：{}", id);
         postService.deletePost(id);
         return Result.success("删除成功");
+    }
+
+    // 点赞帖子
+    @PostMapping("/{id}/like")
+    public Result<LikeResult> likeApost(@PathVariable(value = "postId") Long postId) {
+
+        return Result.success(postService.togglePostLike(postId));
+
     }
 
 }

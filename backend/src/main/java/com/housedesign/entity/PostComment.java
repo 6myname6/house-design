@@ -29,6 +29,9 @@ public class PostComment {
     /** 评论者（逻辑外键 → t_user.id） */
     private Long userId;
 
+    /** 被回复的评论 ID（NULL=顶层评论；非NULL=该评论的回复） */
+    private Long parentId;
+
     /** 评论文字（与 images 至少填一个） */
     private String content;
 

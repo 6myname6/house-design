@@ -77,18 +77,20 @@ CREATE TABLE IF NOT EXISTS `t_post`
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT ='帖子表';
 
--- 帖子评论表（扁平结构）
+-- 帖子评论表（两级：parent_id NULL=顶层评论，非NULL=回复某条评论）
 CREATE TABLE IF NOT EXISTS `t_post_comment`
 (
     `id`         BIGINT       NOT NULL AUTO_INCREMENT COMMENT '评论 ID',
     `post_id`    BIGINT       NOT NULL COMMENT '所属帖子（逻辑外键 → t_post.id）',
     `user_id`    BIGINT       NOT NULL COMMENT '评论者（逻辑外键 → t_user.id）',
+    `parent_id`  BIGINT                DEFAULT NULL COMMENT '被回复的评论 ID（NULL=顶层评论；非NULL=该评论的回复）',
     `content`    TEXT                  DEFAULT NULL COMMENT '评论文字（与 images 至少填一个）',
     `images`     TEXT                  DEFAULT NULL COMMENT '评论图片 URL 列表（JSON 字符串 ↔ List<String>）',
     `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     PRIMARY KEY (`id`),
     KEY `idx_post_id` (`post_id`),
-    KEY `idx_user_id` (`user_id`)
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_parent_id` (`parent_id`)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT ='帖子评论表';
@@ -105,3 +107,16 @@ CREATE TABLE IF NOT EXISTS `t_post_like`
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT ='帖子点赞表';
+
+-- 评论点赞表（独立于帖子点赞，仅存评论的点赞）
+CREATE TABLE IF NOT EXISTS `t_comment_like`
+(
+    `id`         BIGINT   NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `comment_id` BIGINT   NOT NULL COMMENT '被赞评论（逻辑外键 → t_post_comment.id）',
+    `user_id`    BIGINT   NOT NULL COMMENT '点赞用户（逻辑外键 → t_user.id）',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '点赞时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_comment_user` (`comment_id`, `user_id`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci COMMENT ='评论点赞表';

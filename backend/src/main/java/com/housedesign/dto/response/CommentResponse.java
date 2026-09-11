@@ -21,6 +21,9 @@ public class CommentResponse {
     /** 评论者 ID */
     private Long userId;
 
+    /** 被回复的评论 ID（NULL=顶层评论；非NULL=回复） */
+    private Long parentId;
+
     /** 评论者昵称（Service 层补全） */
     private String authorName;
 
@@ -32,6 +35,12 @@ public class CommentResponse {
 
     /** 评论图片 URL 列表 */
     private List<String> images;
+
+    /** 点赞数（Service 层补全） */
+    private Integer likeCount;
+
+    /** 当前用户是否已赞（Service 层补全） */
+    private Boolean likedByMe;
 
     /** 创建时间 */
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
