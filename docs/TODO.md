@@ -35,7 +35,12 @@
 
 - [ ] **CORS 严格配置**：限定可信域名，不用 `*` + `allowCredentials`
 - [ ] **上传文件头校验**：扩展名白名单已有，补 Magic Number 校验防伪装文件
-- [ ] **注册/登录限流**：防爆破、防批量注册
+- [ ] **登录限流（Redis INCR+EXPIRE，体现 Redis 技术栈）**
+  - 需求：对应需求文档 S-3，防暴力破解与批量登录
+  - 实现：登录失败 `INCR login:fail:{username}` + `EXPIRE`，失败次数 ≥ 5 次锁 10 分钟；成功登录 `DEL` 清计数
+  - 为什么用 Redis：高频短时计数（INCR 原子 + 自动过期），MySQL 无过期机制且写压力大
+  - 面试话术：知道什么时候用 Redis（登录限流）与不用（点赞低频数据用 MySQL 原子更新）
+  - 依赖：`spring-boot-starter-data-redis` + 本地 Redis
 - [ ] **令牌失效机制**：改密/登出使旧 JWT 失效
 
 ## 体验与扩展

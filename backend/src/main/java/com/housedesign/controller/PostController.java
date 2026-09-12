@@ -5,7 +5,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.housedesign.Service.PostService;
 import com.housedesign.common.Result;
+import com.housedesign.dto.request.CommentRequest;
 import com.housedesign.dto.request.PostRequest;
+import com.housedesign.dto.response.CommentResponse;
 import com.housedesign.dto.response.LikeResult;
 import com.housedesign.dto.response.PageResult;
 import com.housedesign.dto.response.PostResponse;
@@ -33,7 +35,9 @@ public class PostController {
     @PostMapping()
     public Result<PostResponse> postApost(@RequestBody PostRequest postRequest) {
         // 防止内容图片都空
-        if (postRequest.getContent() == null && postRequest.getImages() == null) {
+        boolean hasContent = postRequest.getContent() != null && !postRequest.getContent().isBlank();
+        boolean hasImages = postRequest.getImages() != null && !postRequest.getImages().isEmpty();
+        if (!hasContent && !hasImages) {
             return Result.error("请确认您要发表的内容！");
         }
         log.info("开始发表帖子：{}", postRequest);
@@ -57,12 +61,20 @@ public class PostController {
         return Result.success("删除成功");
     }
 
-    // 点赞帖子
-    @PostMapping("/{id}/like")
+    // 点赞/取消点赞帖子
+    @PostMapping("/{postId}/like")
     public Result<LikeResult> likeApost(@PathVariable(value = "postId") Long postId) {
-
         return Result.success(postService.togglePostLike(postId));
+    }
 
+    // 评论帖子
+    @PostMapping("/{postId}/comments")
+    public Result<CommentResponse> commentApost(@PathVariable(value = "postId") Long postId,
+            @RequestBody CommentRequest commentRequest) {
+        if (commentRequest.getContent() == null && commentRequest.getImages() == null) {
+            return Result.error("请发表您的评论内容！");
+        }
+        return Result.success(postService.commentApost(postId, commentRequest));
     }
 
 }

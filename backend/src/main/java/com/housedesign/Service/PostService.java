@@ -28,4 +28,8 @@ public interface PostService {
 
     LikeResult togglePostLike(Long postId);
 
+    CommentResponse commentApost(Long postId, CommentRequest commentRequest);
+
+    void delComment(Long commentId);
+
 }

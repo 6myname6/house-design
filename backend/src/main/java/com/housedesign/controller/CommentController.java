@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -35,6 +36,15 @@ public class CommentController {
     public Result<CommentResponse> reply(@PathVariable("id") Long commentId,
             @RequestBody CommentRequest request) {
         return Result.success(postService.replyComment(commentId, request));
+    }
+
+    // 删除评论
+    @DeleteMapping("/{commentId}")
+    public Result<String> delComment(@PathVariable(value = "commentId") Long commentId) {
+        log.info("删除评论：{}", commentId);
+        postService.delComment(commentId);
+        return Result.success("删除成功！");
+
     }
 
 }
