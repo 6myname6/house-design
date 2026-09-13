@@ -20,16 +20,17 @@
   - 效果：N+1 次 SQL 降到 2 次
   - 位置：`backend/src/main/java/com/housedesign/Service/impl/PostServiceImpl.java` 的 `postList`
 
-## 生成链路（§4，规划中）
+## 生成链路（§4，已实现 ✅）
 
-- [ ] **GenerationServiceImpl**：`POST /api/projects/{projectId}/generate`，校验项目归属 + 有设计图 → 创建 PENDING 任务 → 异步线程池处理
-- [ ] **AI provider 抽象**：`ImageTo3DService` 接口 + `mock` 实现（程序化户型重建）+ 智谱实现（CogView 文生图），工厂按 `app.ai.provider` 选择
-- [ ] **状态轮询接口**：`GET /api/generations/{id}`、`GET /api/projects/{projectId}/generations`、`GET /api/generations`
-- [ ] **AI 提示词组装**：按 §4.1 流程——`style_label` 反查枚举 prompt + `style` 自由文本拼装，结果落 `t_generated_model`
+- [x] **GenerationServiceImpl**：`POST /api/projects/{projectId}/generate`，校验项目归属 + 有设计图 → 创建 PENDING 任务 → 线程池异步处理
+- [x] **AI 直连智谱**（方案改为**不用 mock**）：`ZhipuImageService`（WebClient 发起 `images/generations` + 轮询 `async-result/{task_id}`），不做 ImageTo3DService 抽象/工厂
+- [x] **状态轮询接口**：`GET /api/generations/{id}`、`GET /api/projects/{projectId}/generations`、`GET /api/generations`
+- [x] **AI 提示词组装**：按 §4.1 流程——`style_label` 反查枚举 prompt + `style` 自由文本拼装，结果落 `t_generated_model`
+- [x] **图片持久化**：智谱临时 URL 下载落盘 `./storage/designs/`（`FileStorageService.downloadFromUrl`）
 
 ## 3D 查看（前端，规划中）
 
-- [ ] **前端 `Viewer3D.vue`**：按 `sceneConfig.type` 渲染 `photo-tour`（照片漫游）或 `procedural-apartment`（Three.js 重建）
+- [ ] **前端 `Viewer3D.vue`**：按 `sceneConfig.type` 渲染 `photo-tour`（照片漫游）。~~`procedural-apartment`（Three.js 重建，原依赖 mock）~~——mock 方案已废弃，不再提供
 
 ## 安全加固
 

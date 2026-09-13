@@ -1,0 +1,36 @@
+# AI 生成准备（方案 v2：不用 mock，直接调大模型）
+
+> 方案定稿：**砍掉 mock / provider 抽象 / 工厂**，后端直接调用智谱 CogView 文生图。
+
+## 核心链路
+
+```
+POST /api/projects/{id}/generate（秒回 PENDING）
+  └─ 线程池异步：PENDING → PROCESSING
+        → 组装 prompt（DesignStyle.prompt + style 自由文本，prompt 永不来自前端）
+        → 智谱发起 images/generations → 轮询 async-result/{task_id}
+        → 拿临时图片 URL → 下载落盘 ./storage/designs/（本地持久化）
+        → SUCCESS（panoramaUrl=本地URL, sceneConfig=photo-tour）
+        → 异常 → FAILED（errorMessage 记录原因）
+前端 GET /api/generations/{id} 轮询到 SUCCESS
+```
+
+## 已实施 ✅
+
+1. **骨架**：`GeneratedModelMapper` / `GenerationService` / `GenerationServiceImpl` / `GenerationController`（4 端点）/ `GenerationResponse`（时间戳 @JsonFormat）
+2. **AI 直连**：`ZhipuImageService`（WebClient POST `/images/generations` 发起任务 + GET `/async-result/{task_id}` 轮询，兼容"发起即出图"同步响应；未配 `ZHIPU_API_KEY` 直接报错提示，不回退 mock）
+3. **异步**：`AsyncConfig` 提供 `generationExecutor`（ThreadPoolTaskExecutor，@Primary 消除与 Spring Boot 自动装配 executor 的歧义），Service 里手动 `execute` 提交（避开 @Async 同类自调用失效）
+4. **下载持久化**：`FileStorageService.downloadFromUrl(url, dir)` 实现（WebClient 下载字节 → 扩展名白名单 + UUID 重命名 → 落盘 → 返回本地可访问 URL）
+5. **枚举入库**：`application.yml` 已配 `default-enum-type-handler: EnumTypeHandler`，`status` 按枚举名（PENDING/...）存 VARCHAR
+
+## 待确认 ⚠️
+
+- 本地库 `t_generated_model` 表是否已建（`CREATE TABLE IF NOT EXISTS` 不会自动加列；不存在则首查 500）
+- 环境变量 `ZHIPU_API_KEY` 是否已配置（未配则生成任务必然 FAILED）
+
+## 遗留（未做，如前约）
+
+- G-4 同项目防重复并发任务
+- 智谱 429 指数退避重试
+- prompt 长度校验（style 自由文本入库前校验）
+- 前端 `Viewer3D.vue`（photo-tour 渲染，规划中）
