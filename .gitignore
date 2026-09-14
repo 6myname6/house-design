@@ -1,6 +1,7 @@
 # Backend
 backend/target/
 backend/storage/
+storage/
 *.class
 
 # Frontend

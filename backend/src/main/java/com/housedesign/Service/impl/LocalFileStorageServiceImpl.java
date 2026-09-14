@@ -1,13 +1,16 @@
 package com.housedesign.Service.impl;
 
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import com.housedesign.Service.FileStorageService;
 
@@ -61,5 +64,41 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
             return "";
         }
         return fileName.substring(fileName.lastIndexOf(".") + 1).toLowerCase();
+    }
+
+    // 将生成的效果图下载持久化
+    @Override
+    public String downloadFromUrl(String url, String dir) {
+        // 1.用WebClient把URL的图片下载成字节数组(block转同步等待)
+        byte[] bytes = WebClient.create(url).get().retrieve()
+                .bodyToMono(byte[].class)
+                .block(Duration.ofSeconds(60));
+        if (bytes == null || bytes.length == 0) {
+            throw new IllegalStateException("下载内容为空:" + url);
+        }
+
+        try {
+            // 2.从URL路径推断拓展名
+            String orginalName = new URI(url).getPath();
+            String extensioin = getExtension(orginalName);
+            if (!ALLOWED_EXTENSIONS.contains(extensioin)) {
+                throw new IllegalArgumentException("仅支持jpg/png/gif/webp格式图片");
+            }
+
+            // 3.UUID重命名+落盘
+            String stroedName = UUID.randomUUID() + "." + extensioin;
+            Path directory = Paths.get(storageLocation, dir)
+                    .toAbsolutePath().normalize();
+            Files.createDirectories(directory);
+            Files.write(directory.resolve(orginalName), bytes);
+
+            // 4.拼本地可访问URL
+            String localURL = publicBaseUrl + "/" + dir + "/" + stroedName;
+            log.info("外部图片持久化成功:{}->{}", url, localURL);
+            return localURL;
+        } catch (Exception e) {
+            log.error("外部图片下载失败:{}", url, e);
+            throw new IllegalStateException("AI生图下载失败,请稍后重试");
+        }
     }
 }

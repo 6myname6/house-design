@@ -4,7 +4,7 @@
 
 > 本项目为个人**全栈项目**：从零重建一套 Spring Boot 3 + Vue 3 + Three.js 的完整应用，用于沉淀全栈工程能力。
 ---
-> 当前状态：**后端为主**（认证/项目/社区已可用），前端与 AI 生成为规划中。详见下方开发进度。
+> 当前状态：**后端为主**（认证/项目/社区/AI 生成已可用），前端为规划中。详见下方开发进度。
 
 ## 开发进度
 
@@ -15,9 +15,10 @@
 | P0 | 环境搭建 + 基线功能验证 | 完成 |
 | P1 | 后端地基（工程骨架 / 统一响应 / 实体建表 / JWT / 配置） | 完成 |
 | P2 | 认证 + 文件上传模块 | 完成 |
-| P3 | 项目 CRUD + 社区模块（发帖/评论/点赞） | 🔨 进行中（项目 CRUD 已完成，社区帖子点赞/评论待补，AI 生成待做） |
-| P4 | Vue3 前端 + Three.js 3D 查看器 | 待开始 |
-| P5 | 真实 AI 接入 + 社区完善 + 打包部署 | 待开始 |
+| P3 | 项目 CRUD + 社区模块（发帖/评论/点赞/楼中楼） | 完成 |
+| P4 | AI 生成链路（直连智谱 CogView，异步 + 轮询 + 本地持久化） | 完成 |
+| P5 | Vue3 前端 + Three.js 3D 查看器 | 待开始 |
+| P6 | 社区完善 + 打包部署 | 待开始 |
 
 ---
 
@@ -30,11 +31,11 @@
 | 后端 | JWT（jjwt） | 登录鉴权 + 接口归属校验（拦截器 + ThreadLocal） |
 | 后端 | springdoc-openapi | Swagger 接口文档（/swagger-ui.html + /v3/api-docs） |
 | 后端 | MySQL 8 / BCrypt | 数据存储 / 密码加密 |
-| 后端 | Spring WebClient（规划中） | 异步调用外部 AI 服务 |
+| 后端 | Spring WebClient | 异步调用外部 AI（智谱 CogView 文生图） |
 | 前端 | Vue 3 + Vite 5 + Element Plus（待开发） | SPA 界面 |
 | 前端 | Pinia / Vue Router / Axios（待开发） | 状态管理 / 路由 / 请求封装 |
 | 前端 | Three.js（待开发） | 3D 场景构建与交互 |
-| AI | 智谱 CogView-4（可插拔，规划中） | 户型图 → 写实效果图 |
+| AI | 智谱 CogView-4 | 设计图 → 写实效果图（直连，异步任务模式） |
 
 ---
 
@@ -44,8 +45,8 @@
 - **风格**：内置 5 种装修风格（现代简约 / 奶油轻法式 / 意式轻奢 / 新中式 / 原木风），`DesignStyle` 枚举为单一数据源，`GET /api/styles` 提供风格列表
 - **设计项目**：创建（含设计图上传，支持「用户自定义风格要求 + 预设风格标签」双输入）/ 列表 / 详情 / 删除，全部仅限本人操作（归属校验 + 404 防枚举探测）
 - **装修小圈**：发帖（图文）/ 分页列表 / 我的帖子 / 删帖；**评论点赞**（独立于帖子点赞）；**楼中楼回复**（parent_id 两级）
-- **AI 生成**（规划中）：一键生成 3D 效果，异步任务 + 状态轮询；结果含效果图与 3D 场景
-- **3D 查看**（规划中）：旋转 / 缩放 / 平移 / 自动环视；一键切换风格
+- **AI 生成**：一键生成装修效果图（直连智谱 CogView），异步任务 + 状态轮询（PENDING→PROCESSING→SUCCESS/FAILED）；生成图下载落盘本地，`panoramaUrl` 可长期访问
+- **3D 查看**（规划中）：photo-tour 照片漫游渲染，前端 `Viewer3D.vue` 待开发
 - **文件**：统一上传接口（头像、帖子图片、设计图），扩展名白名单 + UUID 重命名
 - **接口文档**：Swagger UI 在线浏览，`/v3/api-docs` JSON 可导入 Apifox/Postman
 
@@ -99,15 +100,20 @@ npm run dev
 
 访问 http://localhost:5173 （已配置 `/api`、`/files` 代理到 8080）
 
-### 4. 接入真实 AI（可选，规划中）
+### 4. 配置 AI Key（生成功能必需，直连智谱）
 
-默认 `provider: mock`，零配置即可体验全流程。接智谱真实文生图：
+生成功能直连智谱，需配置 API Key（环境变量注入，不落代码）：
 
 ```bash
+# Windows (CMD)
+set ZHIPU_API_KEY=你的Key
+# PowerShell
+$env:ZHIPU_API_KEY="你的Key"
+# Git Bash / macOS / Linux
 export ZHIPU_API_KEY=你的Key
 ```
 
-> 无 Key 时自动回退 mock，链路不受影响。
+> 未配置 `ZHIPU_API_KEY` 时，发起生成任务会进入 FAILED（`errorMessage` 提示配置 Key）。智谱开放平台（bigmodel.cn）注册即可生成 Key，新用户含免费额度。
 
 ---
 
@@ -117,14 +123,14 @@ export ZHIPU_API_KEY=你的Key
 HouseDesign/
 ├── backend/                      # Spring Boot 后端
 │   └── src/main/java/com/housedesign/
-│       ├── config/               # WebConfig / MybatisPlusConfig（分页）/ OpenApiConfig（Swagger）
+│       ├── config/               # WebConfig / MybatisPlusConfig（分页）/ OpenApiConfig（Swagger）/ AsyncConfig（生成线程池）
 │       ├── common/               # Result（统一响应）、BusinessException、GlobalExceptionHandler、UserContext
 │       ├── controller/           # Controller（薄：收参 / 调服务 / 包 Result）
 │       ├── dto/                  # request / response DTO（含 PageResult 分页通用响应）
-│       ├── entity/               # MyBatis-Plus 实体（User / DesignProject / Post* / CommentLike / ...）
+│       ├── entity/               # MyBatis-Plus 实体（User / DesignProject / GeneratedModel / Post* / ...）
 │       ├── interceptor/          # JwtInterceptor（token 校验 + 用户上下文）
 │       ├── mapper/               # MyBatis-Plus BaseMapper 接口
-│       ├── Service/              # 业务接口 + impl 实现
+│       ├── Service/              # 业务接口 + impl 实现（含 AIimageService 智谱直连）
 │       └── util/                 # JwtUtil 等工具
 │   └── src/main/resources/
 │       ├── application.yml       # 配置（环境变量注入）
@@ -141,7 +147,7 @@ HouseDesign/
 | --- | --- | --- |
 | `t_user` | 用户 | BCrypt 密码 |
 | `t_design_project` | 设计项目 | `user_id` 归属；`style`（自定义要求）+ `style_label`（预设 code）双字段 |
-| `t_generated_model` | AI 生成任务与结果 | 状态枚举 + `project_id`（规划中） |
+| `t_generated_model` | AI 生成任务与结果 | 状态枚举 + `project_id`；`scene_config`（photo-tour） |
 | `t_post` | 社区帖子 | `comment_count` 冗余计数器 |
 | `t_post_comment` | 评论 | 两级楼中楼（`parent_id`）+ 图文评论（`images` JSON） |
 | `t_post_like` | 帖子点赞 | `UNIQUE(post_id, user_id)` 防重复赞 |

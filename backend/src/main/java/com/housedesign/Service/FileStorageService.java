@@ -17,4 +17,7 @@ public interface FileStorageService {
      */
     String upload(MultipartFile file, String dir);
 
+    // 下载图片->落盘->返回本地URL
+    String downloadFromUrl(String url, String dir);
+
 }

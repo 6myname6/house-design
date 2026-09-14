@@ -15,6 +15,7 @@ import com.housedesign.dto.response.ProjectResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,7 +29,7 @@ public class ProjectController {
     private final ProjectService projectService;
 
     // 创建项目并上传设计图
-    @PostMapping()
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Result<ProjectResponse> createProject(@RequestParam("name") String name,
             @RequestParam(value = "description", required = false) String description,
             @RequestParam(value = "style", required = false) String style,

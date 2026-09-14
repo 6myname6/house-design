@@ -29,12 +29,11 @@ app:
   jwt:
     secret: ${JWT_SECRET:dev-only-secret-change-me-please-set-env}
     expiration-ms: 604800000  # 7 天
-  # AI 图生3D 配置（无 key 时 Factory 自动回退 mock，链路照常可用）
+  # AI 文生图配置（直连智谱 CogView，Key 从环境变量注入；未配时生成任务 FAILED）
   ai:
-    provider: zhipu
     api-key: ${ZHIPU_API_KEY}
     base-url: "https://open.bigmodel.cn/api/paas/v4"
-    image-model: "cogview-4"
+    image-model: "glm-4.6v-flash"
     timeout-seconds: 300
 
 # MyBatis-Plus 配置
