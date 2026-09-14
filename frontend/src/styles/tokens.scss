@@ -1,0 +1,86 @@
+/* ============================================
+   筑梦家 · 设计 Token（暖陶土主题）
+   依据：HouseDesign-界面设计方案 §4 配色 / §5 字体
+   ============================================ */
+:root {
+    /* ---- 品牌主色阶（暖陶土 Terracotta）---- */
+    --hd-primary-50: #fdf3ee;
+    --hd-primary-100: #fae0d3;
+    --hd-primary-200: #f3bfa4;
+    --hd-primary-400: #e08a5a;
+    --hd-primary-600: #c05a21;
+    /* 主按钮/品牌色 */
+    --hd-primary-700: #a34a18;
+    /* 链接/可点击文字 */
+    --hd-primary-800: #7a3712;
+    --hd-primary-900: #5c2a0e;
+
+    /* ---- 中性色（暖灰）---- */
+    --hd-neutral-50: #faf9f7;
+    /* 页面背景 */
+    --hd-neutral-100: #f1efea;
+    /* 卡片背景、骨架屏 */
+    --hd-neutral-200: #e3e0d9;
+    /* 次级背景 */
+    --hd-neutral-300: #c9c5bb;
+    /* 描边、分隔线 */
+    --hd-neutral-400: #9b968a;
+    /* 禁用文字 */
+    --hd-neutral-500: #6e6a5f;
+    /* 次要文字 */
+    --hd-neutral-700: #403d36;
+    /* 强调文字 */
+    --hd-neutral-800: #2c2a26;
+    /* 主文字 */
+
+    /* ---- 语义色 ---- */
+    --hd-success: #1f7a3d;
+    --hd-danger: #b3261e;
+    --hd-warning: #b45309;
+    --hd-info: #175cd3;
+
+    /* ---- 字体 ---- */
+    --hd-font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC',
+        'HarmonyOS Sans SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+    --hd-font-mono: ui-monospace, 'SF Mono', Consolas, monospace;
+
+    /* ---- 字号（8px 基线模块化）---- */
+    --hd-text-display: 32px;
+    /* 移动端 32/40，桌面 48/56 */
+    --hd-text-display-line: 40px;
+    --hd-text-h1: 32px;
+    --hd-text-h1-line: 40px;
+    --hd-text-h2: 24px;
+    --hd-text-h2-line: 32px;
+    --hd-text-h3: 20px;
+    --hd-text-h3-line: 28px;
+    --hd-text-body: 16px;
+    --hd-text-body-line: 24px;
+    --hd-text-caption: 14px;
+    --hd-text-caption-line: 20px;
+    --hd-text-overline: 12px;
+    --hd-text-overline-line: 16px;
+
+    --hd-font-weight-regular: 400;
+    --hd-font-weight-medium: 500;
+
+    /* ---- 间距（8px 倍数）---- */
+    --hd-space-1: 8px;
+    --hd-space-2: 16px;
+    --hd-space-3: 24px;
+    --hd-space-4: 32px;
+    --hd-space-5: 40px;
+    --hd-space-6: 48px;
+
+    /* ---- 圆角 / 动效 ---- */
+    --hd-radius-base: 8px;
+    --hd-radius-lg: 12px;
+    --hd-duration-fast: 0.2s;
+    --hd-duration-slow: 0.3s;
+
+    /* ---- 布局 ---- */
+    --hd-container-max: 1200px;
+    --hd-content-max: 540px;
+    /* sm 断点内容最大宽 */
+    --hd-tab-bar-height: 56px;
+}

@@ -1,5 +1,7 @@
 package com.housedesign.controller;
 
+import java.util.List;
+
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -51,6 +53,12 @@ public class PostController {
             @RequestParam(value = "pageSize", defaultValue = "20") int pageSize) {
         log.info("显示帖子");
         return Result.success(postService.postList(mine, pageNum, pageSize));
+    }
+
+    // 帖子评论列表（含回复）
+    @GetMapping("/{postId}/comments")
+    public Result<List<CommentResponse>> commentList(@PathVariable(value = "postId") Long postId) {
+        return Result.success(postService.commentList(postId));
     }
 
     // 删除帖子

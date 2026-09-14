@@ -1,0 +1,51 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  font-family: var(--hd-font-family);
+  background-color: var(--hd-neutral-50);
+  color: var(--hd-neutral-800);
+  font-size: var(--hd-text-body);
+  line-height: var(--hd-text-body-line);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 无障碍：焦点可见 */
+:focus-visible {
+  outline: 2px solid var(--hd-primary-700);
+  outline-offset: 2px;
+}
+
+/* 触控目标最小 44px */
+button,
+.tab-item,
+[role='button'] {
+  min-height: 44px;
+}
+
+/* 数字齐平对齐 */
+.num,
+time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 尊重系统减弱动效 */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,5 +1,19 @@
 # 筑梦家 · 待办清单
 
+## 新增需求（2026-09-14，前端）
+
+- [ ] **登录页背景轮播**（需求文档 A-8 / §10.1）
+  - 登录/注册页背景 5 张装修效果图，`setInterval` 每 5 秒切换，淡入淡出
+  - 素材：静态目录或复用生成结果 `panoramaUrl`
+  - 位置：`frontend/src/views/Login.vue`、`Register.vue`
+- [ ] **帖子详情页**（需求文档 C-12 / §10.2）
+  - 前端：新增 `PostDetail.vue`（`/posts/:id`），从「我的发布」列表点击进入；复用小圈评论区交互（点赞/评论/回复）
+  - 后端：需新增**单帖详情接口** `GET /api/posts/{id}`（返回 PostResponse，归属校验 + 404 防枚举）；评论列表复用 `GET /api/posts/{postId}/comments`
+  - 位置：`frontend/src/views/Profile.vue`（我的发布入口）、`frontend/src/router/index.js`
+- [ ] **左侧导航栏收起/展开**（需求文档 N-8 / §10.3）
+  - 侧边栏头部折叠按钮；收起仅留图标、内容区变宽
+  - 位置：`frontend/src/layout/TabBar.vue`、`frontend/src/App.vue`
+
 ## 社区模块（装修小圈）
 
 - [ ] **帖子点赞/取消点赞**（§5.4）

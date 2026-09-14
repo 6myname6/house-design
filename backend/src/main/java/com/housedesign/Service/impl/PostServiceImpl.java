@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.housedesign.Service.PostService;
 import com.housedesign.common.BusinessException;
@@ -144,6 +145,21 @@ public class PostServiceImpl implements PostService {
         return new PageResult<>(page.getTotal(), records);
     }
 
+    // 帖子评论列表（含回复，按时间升序）
+    @Override
+    public List<CommentResponse> commentList(Long postId) {
+        // 校验帖子是否存在
+        if (postMapper.selectById(postId) == null) {
+            log.warn("查询评论失败-帖子不存在：postId={}", postId);
+            throw new BusinessException(404, "抱歉，帖子不存在了~");
+        }
+        List<PostComment> comments = postCommentMapper.selectList(
+                new LambdaQueryWrapper<PostComment>()
+                        .eq(PostComment::getPostId, postId)
+                        .orderByAsc(PostComment::getId));
+        return comments.stream().map(this::toCommentResponse).toList();
+    }
+
     // 删除帖子
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -228,6 +244,10 @@ public class PostServiceImpl implements PostService {
         reply.setContent(request.getContent());
         reply.setImages(request.getImages());
         postCommentMapper.insert(reply);
+        // 回增帖子评论计数（原子 SQL，避免并发覆盖）
+        postMapper.update(null, new LambdaUpdateWrapper<Post>()
+                .eq(Post::getId, parent.getPostId())
+                .setSql("comment_count = comment_count + 1"));
         log.info("回复评论成功：replyId={}, commentId={}, userId={}", reply.getId(), commentId, userId);
         return toCommentResponse(reply);
     }
@@ -281,32 +301,46 @@ public class PostServiceImpl implements PostService {
         postComment.setUserId(userId);
         postComment.setImages(commentRequest.getImages());
         postCommentMapper.insert(postComment);
+        // 回增帖子评论计数（原子 SQL，避免并发覆盖）
+        postMapper.update(null, new LambdaUpdateWrapper<Post>()
+                .eq(Post::getId, postComment.getPostId())
+                .setSql("comment_count = comment_count + 1"));
         log.info("评论帖子成功：commentId={}, postId={}, userId={}", postComment.getId(), postId, userId);
         return toCommentResponse(postComment);
 
     }
 
+    // 删除评论
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void delComment(Long commentId) {
         PostComment postComment = postCommentMapper.selectById(commentId);
         if (postComment == null) {// 检查评论是否存在
-            log.error("不存在评论：{}", commentId);
+            log.warn("删除评论失败-评论不存在：commentId={}", commentId);
             throw new BusinessException(404, "抱歉，评论不存在");
         }
-        // 权限校验，检查是否为自己的评论
+        // 权限校验，检查是否为自己的评论（Long 用 equals 比较，避免引用比较误判）
         Long userId = UserContext.getUserId();
-        if (userId != postComment.getUserId()) {
-            log.warn("只能删除自己的评论！");
+        if (!userId.equals(postComment.getUserId())) {
+            log.warn("删除评论失败-越权访问：commentId={}, ownerId={}, userId={}", commentId, postComment.getUserId(), userId);
             throw new BusinessException(404, "只能删除自己的评论");
         }
-        commentLikeMapper.deleteById(
+        // 删除其关联回复数（本体 + 直接回复），用于回减帖子评论计数
+        long deleteCount = 1 + postCommentMapper.selectCount(
+                new LambdaQueryWrapper<PostComment>()
+                        .eq(PostComment::getParentId, commentId));
+        commentLikeMapper.delete(
                 new LambdaQueryWrapper<CommentLike>()
                         .eq(CommentLike::getCommentId, commentId));
         postCommentMapper.delete(
                 new LambdaQueryWrapper<PostComment>()
                         .eq(PostComment::getParentId, commentId));
         postCommentMapper.deleteById(commentId);
-        log.info("删除评论成功：commentId={}, userId={}", commentId, userId);
+        // 回减帖子评论计数（原子 SQL，避免并发覆盖）
+        postMapper.update(null, new LambdaUpdateWrapper<Post>()
+                .eq(Post::getId, postComment.getPostId())
+                .setSql("comment_count = comment_count - " + deleteCount));
+        log.info("删除评论成功：commentId={}, postId={}, userId={}", commentId, postComment.getPostId(), userId);
     }
 
 }

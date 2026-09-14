@@ -1,0 +1,20 @@
+/* ============================================
+   Element Plus 主题覆盖（暖陶土）
+   依据：HouseDesign-界面设计方案 §7
+   ============================================ */
+:root {
+  --el-color-primary: #c05a21;
+  --el-color-primary-light-3: #d8875a;
+  --el-color-primary-light-5: #e5a883;
+  --el-color-primary-light-7: #f2cbb2;
+  --el-color-primary-light-8: #f6dcc9;
+  --el-color-primary-light-9: #fdf3ee;
+  --el-color-primary-dark-2: #a34a18;
+  --el-border-radius-base: 8px;
+  --el-font-size-base: 14px;
+  /* 语义色走 el-tag 等组件时统一替换 */
+  --el-color-success: #1f7a3d;
+  --el-color-danger: #b3261e;
+  --el-color-warning: #b45309;
+  --el-color-info: #175cd3;
+}

@@ -1,5 +1,7 @@
 package com.housedesign.Service;
 
+import java.util.List;
+
 import com.housedesign.dto.request.CommentRequest;
 import com.housedesign.dto.request.PostRequest;
 import com.housedesign.dto.response.CommentResponse;
@@ -19,6 +21,9 @@ public interface PostService {
 
     // 删除帖子
     void deletePost(Long id);
+
+    // 帖子评论列表（含回复，按时间升序）
+    List<CommentResponse> commentList(Long postId);
 
     // 评论点赞 / 取消点赞（切换）
     LikeResult toggleCommentLike(Long commentId);
