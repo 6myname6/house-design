@@ -29,7 +29,7 @@ public class LoginController {
     @PostMapping("/login")
     // 1. 获取前端传入参数：用户名，密码
     public Result<String> login(@RequestBody @Valid LoginRequest loginRequest) {
-        log.info("登录：{}", loginRequest);
+        log.info("用户：{}登录中...", loginRequest.getUsername());
         // 2.调用UserService.login方法登录用户
         LoginInfoResponse info = userService.login(loginRequest);
         // 3.根据登录结果返回响应

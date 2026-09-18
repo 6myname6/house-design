@@ -1,7 +1,7 @@
 package com.housedesign.interceptor;
 
+import com.housedesign.common.JwtUtil;
 import com.housedesign.common.UserContext;
-import com.housedesign.util.JwtUtil;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -46,7 +46,7 @@ public class JwtInterceptor implements HandlerInterceptor {
 
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler,
-                                Exception ex) {
+            Exception ex) {
         // 线程池复用线程，必须清理，防止用户身份串到下一个请求
         UserContext.clear();
     }

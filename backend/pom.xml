@@ -24,6 +24,11 @@
 
     <properties>
         <java.version>17</java.version>
+        <!-- LangChain4j 版本：1.0.1-beta6 是兼容 Spring Boot 3.2 的最后安全选择；
+             1.x 更新版（约 1.2 起）的 http-client-spring-restclient 依赖 Boot 3.4 的
+             ClientHttpRequestFactoryBuilder，在 Boot 3.2.5 下启动报 NoClassDefFoundError。
+             若以后升级 Spring Boot 到 3.4+，可同步升级 langchain4j。 -->
+        <langchain4j.version>1.0.1-beta6</langchain4j.version>
     </properties>
 
     <dependencies>
@@ -95,6 +100,25 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+        <!-- redis：登录失败计数限流（incr 原子自增+expire 自动过期） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
+        <!-- LangChain4j：OpenAI 兼容协议的模型接入层（智谱 GLM 通过 base-url 兼容接入），
+             负责自动装配 ChatModel；Boot 3.x 用 -spring-boot-starter（Boot 4 才是 -spring-boot4-starter） -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai-spring-boot-starter</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+        <!-- LangChain4j：声明式 AI Service 层，负责扫描 @AiService 注解接口并生成实现 bean -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-spring-boot-starter</artifactId>
+            <version>${langchain4j.version}</version>
         </dependency>
     </dependencies>
 

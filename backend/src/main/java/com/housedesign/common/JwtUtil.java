@@ -1,4 +1,4 @@
-package com.housedesign.util;
+package com.housedesign.common;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;

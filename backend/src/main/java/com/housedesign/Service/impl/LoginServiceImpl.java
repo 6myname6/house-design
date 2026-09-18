@@ -2,12 +2,13 @@ package com.housedesign.Service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.housedesign.Service.LoginService;
+import com.housedesign.common.JwtUtil;
+import com.housedesign.common.LoginRateLimiter;
 import com.housedesign.dto.request.LoginRequest;
 import com.housedesign.dto.request.RegisterRequest;
 import com.housedesign.dto.response.LoginInfoResponse;
 import com.housedesign.entity.User;
 import com.housedesign.mapper.UserMapper;
-import com.housedesign.util.JwtUtil;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,7 @@ public class LoginServiceImpl implements LoginService {
     private final UserMapper userMapper;
     private final BCryptPasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final LoginRateLimiter loginRateLimiter;
 
     @Override
     public Long register(RegisterRequest registerRequest) {
@@ -48,15 +50,25 @@ public class LoginServiceImpl implements LoginService {
 
     @Override
     public LoginInfoResponse login(LoginRequest loginRequest) {
+        String username = loginRequest.getUsername();
+        // 锁定期检查：已达失败上限则直接抛出429
+        loginRateLimiter.checkLocked(username);
         // 1.根据用户名查询用户
         User user = userMapper.selectOne(
                 new LambdaQueryWrapper<User>().eq(User::getUsername, loginRequest.getUsername()));
-        if (user == null || !passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
-            // 用户名不存在或密码错误，则返回空
+        if (user == null) {
+            loginRateLimiter.recordFailure(username);
+            log.warn("用户名不存在！");
             return null;
         }
-        // 用户名存在，密码正确，则返回登录信息
+        if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
+            // 密码错误，计数器+1
+            loginRateLimiter.recordFailure(username);
+            return null;
+        }
+        // 用户名存在，密码正确，清除计数器，返回登录信息
         // 生成 JWT 令牌
+        loginRateLimiter.clearOnSuccess(username);
         String token;
         token = jwtUtil.createToken(user.getId(), user.getUsername());
         return new LoginInfoResponse(user.getId(), token);

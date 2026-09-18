@@ -19,6 +19,13 @@ spring:
       max-file-size: 20MB
       max-request-size: 50MB
 
+  # redis相关配置
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ${REDIS_PASSWORD:}  # 本地 Redis 无密码留空；生产用环境变量注入
+      timeout: 3s
 # 应用自定义配置（后续 P1-⑤ 由 AppProperties 用 @ConfigurationProperties 绑定）
 app:
   # 文件存储根目录（设计图、生成结果等）
@@ -35,6 +42,17 @@ app:
     base-url: "https://open.bigmodel.cn/api/paas/v4"
     image-model: "glm-4.6v-flash"
     timeout-seconds: 300
+    # 对话补全配置（风格预优化用，免费 flash 文本模型）
+    chat-model: "glm-4.7-flash"
+    chat-timeout-seconds: 60
+    vsion-model: glm-4.6v-flash
+
+
+
+  login-limit:
+    max-fail-count: 5 #连续失败次数
+    lock-seconds: 600  #锁定时长
+    
 
 # MyBatis-Plus 配置
 mybatis-plus:
@@ -54,3 +72,17 @@ mybatis-plus:
 logging:
   level:
     com.housedesign: INFO
+
+
+langchain4j:
+  open-ai:
+    chat-model:
+      temperature: 0.6
+      base-url: https://open.bigmodel.cn/api/paas/v4
+      api-key: ${ZHIPU_API_KEY}
+      timeout: 90s
+      log-requests: true
+      log-responses: true
+      model-name: glm-4.6v-flash
+   
+    
