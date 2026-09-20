@@ -16,7 +16,7 @@
 - [x] **Bean 冲突踩坑**：Starter 已按 yml 自动装配 `openAiChatModel`，不要再手写 `AiConfig` 里的 `@Bean ChatModel`（两个同类型 bean 导致启动报 IllegalConfigurationException），已删除 AiConfig
 - [ ] **纯文本拒答不稳定（实测发现）**：glm-4.6v-flash 对"非装修问题礼貌拒绝"指令遵循弱（图片场景能拒，纯文本问冒泡排序仍答代码）；待强化系统提示词（few-shot 示例 / 更强约束措辞）后回归
 - [ ] **多轮记忆**：`ChatMemoryProvider`（会话 id → `MessageWindowChatMemory`，起步内存 Map，重启丢失可接受）+ `@AiService` 方法加 `@MemoryId String conversationId`；DTO 加 `conversationId`（首轮为空则生成）。注意：图文链路用的是裸 `ChatModel`，记忆需要手工把历史消息拼进消息列表，或等升级支持多模态参数的 langchain4j 版本后回归 @AiService
-- [ ] **图片 URL/base64 混合模式（等接入 OSS，对应 F-3）**：`AiChatController.toImageContent` 按前缀分流——`http(s)://` 开头走 `ImageContent.from(URI.create(url))`（智谱服务器自行下载），`data:` 开头走现有 DataURL 解析；接口契约 `images: string[]` 与前端零改动。约束：必须公网可达（公共读或有效期 ≥5min 的签名 URL；用公网 endpoint 而非 `-internal`；不能开 Referer 防盗链，智谱拉取不带 Referer）。适用：已存档图片（帖子图/设计图）走 URL 省 33% base64 膨胀，用户本地新图仍走 base64
+- [ ] **图片 URL/base64 混合模式（OSS 已就绪，前置条件满足，对应 F-3 已完成）**：`AiChatController.toImageContent` 按前缀分流——`http(s)://` 开头走 `ImageContent.from(URI.create(url))`（智谱服务器自行下载），`data:` 开头走现有 DataURL 解析；接口契约 `images: string[]` 与前端零改动。约束：必须公网可达（公共读或有效期 ≥5min 的签名 URL；用公网 endpoint 而非 `-internal`；不能开 Referer 防盗链，智谱拉取不带 Referer）。适用：已存档图片（帖子图/设计图）走 URL 省 33% base64 膨胀，用户本地新图仍走 base64
 - [ ] **前端聊天页**：`api/ai.js` + `views/AiChat.vue`（气泡 UI、图片选择/预览、`FileReader` 转 DataURL、loading/503 重试）+ 路由 + TabBar 入口
 
 ## 新增需求（2026-09-14，前端）
@@ -104,4 +104,5 @@
 
 - [ ] **项目列表分页**（§3.2）
 - [ ] **帖子搜索/筛选**（按内容/标签）
-- [ ] **对象存储/CDN 替换**本地文件系统
+- [x] **对象存储（阿里云 OSS）**：`FileStorageService` 抽象 + 模板方法基类 `AbstractFileStorageService`（校验/命名/MIME/远程下载），Local 与 OSS 双实现按 `app.storage.type`（local/oss）条件装配；OSS 实现单例 `OSSClient`（@PostConstruct fail-fast + @PreDestroy 关连接池）、显式 Content-Type 与一年缓存头。2026-09-20 实测：oss 上传匿名 200、响应头正确、MD5 一致；local 回退正常
+- [ ] **CDN 加速域名**：OSS 已通，后续在其前面挂 CDN，仅需替换 public-base-url

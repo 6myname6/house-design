@@ -28,10 +28,22 @@ spring:
       timeout: 3s
 # 应用自定义配置（后续 P1-⑤ 由 AppProperties 用 @ConfigurationProperties 绑定）
 app:
-  # 文件存储根目录（设计图、生成结果等）
+  # 文件存储（设计图、生成结果等）：local=本地磁盘（默认）/ oss=阿里云 OSS
   storage:
+    # 存储后端开关（用 STORAGE_TYPE 环境变量切换，仓库默认 local）
+    type: ${STORAGE_TYPE:local}
+    # —— 本地存储配置（type=local 时使用）——
     location: ./storage
     public-base-url: http://localhost:8080/files
+    # —— 阿里云 OSS 配置（type=oss 时装配）——
+    oss:
+      endpoint: https://oss-cn-beijing.aliyuncs.com
+      bucket: mybucket0100
+      # 公共读访问域名 = https://{bucket}.{endpoint 去掉https://}
+      public-base-url: https://mybucket0100.oss-cn-beijing.aliyuncs.com
+      # 密钥只从环境变量读，冒号后留空=默认空串，绝不写进代码库
+      access-key-id: ${OSS_ACCESS_KEY_ID:}
+      access-key-secret: ${OSS_ACCESS_KEY_SECRET:}
   # JWT 配置
   jwt:
     secret: ${JWT_SECRET:dev-only-secret-change-me-please-set-env}

@@ -1,26 +1,28 @@
 package com.housedesign.Service.impl;
 
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.Duration;
-import java.util.Set;
-import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.reactive.function.client.WebClient;
-
-import com.housedesign.Service.FileStorageService;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * 本地磁盘存储实现（type=local，默认）。
+ *
+ * 文件落在 ./storage/<dir>/ 下，由 WebConfig 把 /files/** 映射出去对外访问。
+ * 仅适合单机开发/演示：多实例部署时各机器磁盘不共享，A 机器上传的图 B 机器访问不到。
+ */
 @Service
 @Slf4j
-public class LocalFileStorageServiceImpl implements FileStorageService {
+@ConditionalOnProperty(name = "app.storage.type", havingValue = "local", matchIfMissing = true)
+public class LocalFileStorageServiceImpl extends AbstractFileStorageService {
+
     // 1.从yml读配置，避免硬编码
     @Value("${app.storage.public-base-url}")
     private String publicBaseUrl;
@@ -28,77 +30,58 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
     @Value("${app.storage.location}")
     private String storageLocation;
 
-    // 白名单：只允许图片扩展名
-    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("jpg", "jpeg", "png", "gif", "webp");
-
     @Override
     public String upload(MultipartFile file, String dir) {
-        // 2.校验扩展名
-        String original = file.getOriginalFilename();// 获取初始名
-        String extension = getExtension(original);
-        if (!ALLOWED_EXTENSIONS.contains(extension)) {
-            throw new IllegalArgumentException("仅支持 jpg/png/gif/webp 格式图片");
-        }
-        // 3.UUID重命名：防重命名覆盖+防中文乱码+防路径穿越
-        String storedName = UUID.randomUUID() + "." + extension;
-        // 4.落盘到./storage/<dir>/
+        // 2.校验扩展名 + UUID 重命名：防重名覆盖 + 防中文乱码 + 防路径穿越
+        String original = file.getOriginalFilename();
+        String storedName = buildStoredName(original);
+        // 3.落盘到./storage/<dir>/
+        Path directory = resolveDirectory(dir);
         try {
-            Path directory = Paths.get(storageLocation, dir)
-                    .toAbsolutePath().normalize();
             Files.createDirectories(directory);
-            Path target = directory.resolve(storedName);
-            file.transferTo(target.toFile());
+            file.transferTo(directory.resolve(storedName).toFile());
         } catch (Exception e) {
             log.error("文件上传失败：{}", original, e);
             throw new IllegalStateException("文件上传失败，请稍后重试", e);
         }
-        // 5.拼出可访问url返回，如http://localhost:8080/files/uploads/***
+        // 4.拼出可访问url返回，如http://localhost:8080/files/uploads/***
         String url = publicBaseUrl + "/" + dir + "/" + storedName;
         log.info("文件上传成功：{}->{}", original, url);
         return url;
-    }
-
-    // 获取拓展名方法
-    private String getExtension(String fileName) {
-        if (fileName == null || !fileName.contains(".")) {
-            return "";
-        }
-        return fileName.substring(fileName.lastIndexOf(".") + 1).toLowerCase();
     }
 
     // 将生成的效果图下载持久化
     @Override
     public String downloadFromUrl(String url, String dir) {
         // 1.用WebClient把URL的图片下载成字节数组(block转同步等待)
-        byte[] bytes = WebClient.create(url).get().retrieve()
-                .bodyToMono(byte[].class)
-                .block(Duration.ofSeconds(60));
-        if (bytes == null || bytes.length == 0) {
-            throw new IllegalStateException("下载内容为空:" + url);
-        }
+        byte[] bytes = downloadBytes(url);
 
+        // 2.从URL最后一段取扩展名并校验，再UUID重命名
+        String storedName = buildStoredName(fileNameFromUrl(url));
+        // 3.落盘
+        Path directory = resolveDirectory(dir);
         try {
-            // 2.从URL路径推断拓展名
-            String orginalName = new URI(url).getPath();
-            String extensioin = getExtension(orginalName);
-            if (!ALLOWED_EXTENSIONS.contains(extensioin)) {
-                throw new IllegalArgumentException("仅支持jpg/png/gif/webp格式图片");
-            }
-
-            // 3.UUID重命名+落盘
-            String stroedName = UUID.randomUUID() + "." + extensioin;
-            Path directory = Paths.get(storageLocation, dir)
-                    .toAbsolutePath().normalize();
             Files.createDirectories(directory);
-            Files.write(directory.resolve(orginalName), bytes);
-
-            // 4.拼本地可访问URL
-            String localURL = publicBaseUrl + "/" + dir + "/" + stroedName;
-            log.info("外部图片持久化成功:{}->{}", url, localURL);
-            return localURL;
+            // 注意：必须用 storedName 落盘，返回的 URL 也是 storedName，
+            // 用原始路径名写、用新名读会 404
+            Files.write(directory.resolve(storedName), bytes);
         } catch (Exception e) {
             log.error("外部图片下载失败:{}", url, e);
             throw new IllegalStateException("AI生图下载失败,请稍后重试");
         }
+
+        // 4.拼本地可访问URL
+        String localURL = publicBaseUrl + "/" + dir + "/" + storedName;
+        log.info("外部图片持久化成功:{}->{}", url, localURL);
+        return localURL;
+    }
+
+    /**
+     * 解析出 ./storage/<dir> 的绝对路径并 normalize。
+     *
+     * normalize 是为了把 ../ 之类的片段折叠掉，防止 dir 传入 "../../" 时写到项目目录之外。
+     */
+    private Path resolveDirectory(String dir) {
+        return Paths.get(storageLocation, dir).toAbsolutePath().normalize();
     }
 }

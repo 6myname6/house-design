@@ -66,10 +66,10 @@
 - **风格**：内置 5 种装修风格（现代简约 / 奶油轻法式 / 意式轻奢 / 新中式 / 原木风），`DesignStyle` 枚举为单一数据源，`GET /api/styles` 提供风格列表
 - **设计项目**：创建（含设计图上传，支持「用户自定义风格要求 + 预设风格标签」双输入）/ 列表 / 详情 / 删除，全部仅限本人操作（归属校验 + 404 防枚举探测）
 - **装修小圈**：发帖（图文）/ 分页列表 / 我的帖子 / 删帖；**帖子点赞 / 评论 / 删除评论**；**评论点赞**（独立于帖子点赞）；**楼中楼回复**（parent_id 两级）
-- **AI 生成**：一键生成装修效果图（直连智谱 CogView），异步任务 + 状态轮询（PENDING→PROCESSING→SUCCESS/FAILED）；生成图下载落盘本地，`panoramaUrl` 可长期访问
+- **AI 生成**：一键生成装修效果图（直连智谱 CogView），异步任务 + 状态轮询（PENDING→PROCESSING→SUCCESS/FAILED）；生成图持久化到所选存储后端（local 磁盘或 OSS），`panoramaUrl` 可长期访问
 - **AI 设计助手**（🚧 开发中）：基于 LangChain4j + glm-4.6v-flash 的对话能力，支持纯文本 / 图片理解 / 图文混合提问（装修风格识别、建材建议等）；系统角色限定为资深装修设计师；模型限流/超时统一转 503 友好提示。接口契约见接口文档 §11
 - **3D 查看**（规划中）：photo-tour 照片漫游渲染，前端 `Viewer3D.vue` 待开发
-- **文件**：统一上传接口（头像、帖子图片、设计图），扩展名白名单 + UUID 重命名
+- **文件**：统一上传接口（头像、帖子图片、设计图），扩展名白名单 + UUID 重命名；存储后端 Local 磁盘 / 阿里云 OSS 配置开关一键切换（默认 local）
 - **接口文档**：Swagger UI 在线浏览，`/v3/api-docs` JSON 可导入 Apifox/Postman
 
 ## 架构亮点
@@ -77,7 +77,7 @@
 - **JWT 鉴权 + ThreadLocal 用户上下文**：`JwtInterceptor` 校验 token 并写入 `UserContext`，`afterCompletion` 清理防止线程复用串号；资源归属一律从 `UserContext.getUserId()` 获取，杜绝前端伪造。
 - **全局异常处理器**：`BusinessException`（携带业务码）+ `@RestControllerAdvice` 统一把异常转 `Result`，404/400/500 语义明确，避免 500 错误页泄露堆栈。
 - **风格枚举单一数据源**：`DesignStyle` 一个枚举同时承担入参校验（code 反查）、响应展示（label）、AI 提示词（prompt）三重职责；`@JsonFormat(OBJECT)` 序列化 + `@JsonIgnore` 屏蔽 prompt，防提示词泄露与注入。
-- **文件存储抽象**：`FileStorageService` 接口 + `LocalFileStorageServiceImpl` 磁盘实现，业务层只管传 URL；未来换 OSS 只换实现类，业务零改动。
+- **文件存储抽象 + 双实现开关**：`FileStorageService` 接口 + 模板方法基类 `AbstractFileStorageService`（校验/UUID 命名/MIME 映射/远程下载），Local 磁盘与阿里云 OSS 两套实现按 `app.storage.type=local|oss` 条件装配（`@ConditionalOnProperty`），业务层与前端零感知；OSS 客户端单例管理连接池（启动 fail-fast 校验密钥、关闭时 shutdown），显式设置 Content-Type（防图片被当附件下载）与一年缓存头。
 - **点赞防重与级联清理**：帖子/评论点赞表均以 `UNIQUE(目标id, user_id)` 防重复；删帖用 `@Transactional` 级联删除评论与两种点赞。
 - **Controller 薄 / Service 厚**：Controller 只收参数、调服务、包 `Result`；校验、归属判断、事务全在 Service 层，职责清晰。
 - **声明式 + 原生双路 AI 接入（LangChain4j）**：纯文本走 `@AiService` + `@SystemMessage` 角色设定；图文链路因 1.0.1 版 AiService 不支持图片参数，直连自动装配的 `ChatModel` 手工组装 `TextContent + ImageContent` 多模态消息；Service 层统一异常转译（429/超时/5xx → 503，401 配置错误不吞）。
@@ -147,6 +147,19 @@ export ZHIPU_API_KEY=你的Key
 ```
 
 > 未配置 `ZHIPU_API_KEY` 时，发起生成任务会进入 FAILED（`errorMessage` 提示配置 Key），AI 对话接口返回模型侧鉴权错误。智谱开放平台（bigmodel.cn）注册即可生成 Key，新用户含免费额度。
+
+### 5. 存储后端切换（默认本地磁盘，可选阿里云 OSS）
+
+由 `app.storage.type` 控制，默认 `local`（什么都不配即用）；切 OSS 需在阿里云创建**公共读** bucket，并注入三个环境变量后启动：
+
+```powershell
+# PowerShell（当前窗口临时生效）
+$env:STORAGE_TYPE="oss"
+$env:OSS_ACCESS_KEY_ID="你的AK"
+$env:OSS_ACCESS_KEY_SECRET="你的SK"
+```
+
+bucket 名、地域 endpoint、公网域名在 `application.yml` 的 `app.storage.oss` 下按实际修改；密钥仅从环境变量读取。切换后上传接口返回 `https://{bucket}.{endpoint}/{dir}/{uuid}.ext`，接口契约与前端调用不变。
 
 ---
 
