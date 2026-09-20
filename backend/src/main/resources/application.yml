@@ -19,12 +19,12 @@ spring:
       max-file-size: 20MB
       max-request-size: 50MB
 
-  # redis相关配置
+  # Redis（本地 Docker：docker run -p 6379:6379 redis:7-alpine --requirepass 123456 --appendonly yes）
   data:
     redis:
       host: localhost
       port: 6379
-      password: ${REDIS_PASSWORD:}  # 本地 Redis 无密码留空；生产用环境变量注入
+      password: ${REDIS_PASSWORD:123456}  # 默认对齐本地 Docker 容器密码；生产用环境变量覆盖
       timeout: 3s
 # 应用自定义配置（后续 P1-⑤ 由 AppProperties 用 @ConfigurationProperties 绑定）
 app:
