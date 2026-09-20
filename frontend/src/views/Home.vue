@@ -1,61 +1,70 @@
 <template>
   <div class="page">
-    <!-- 顶栏：标题居左，新建按钮居右 -->
-    <header class="page-header">
-      <h2 class="title">我的项目</h2>
-      <button class="new-project-btn" type="button" @click="goNew">
-        <span aria-hidden="true">＋</span> 新建项目
+    <!-- 页头 -->
+    <header class="page-head hd-rise">
+      <div class="head-text">
+        <p class="hd-overline">01 — Projects</p>
+        <h2 class="head-title">我的项目</h2>
+      </div>
+      <button class="new-btn" type="button" @click="goNew">
+        <span>新建项目</span>
+        <span class="new-arrow" aria-hidden="true">→</span>
       </button>
     </header>
 
-    <!-- 加载骨架屏 -->
-    <div v-if="loading" class="grid">
-      <div v-for="i in 6" :key="i" class="card">
-        <el-skeleton animated>
-          <template #template>
-            <el-skeleton-item variant="image" class="skeleton-img" />
-            <el-skeleton-item variant="h3" class="skeleton-line" />
-            <el-skeleton-item variant="text" class="skeleton-line short" />
-          </template>
-        </el-skeleton>
+    <!-- 加载骨架 -->
+    <div v-if="loading" class="entry-list">
+      <div v-for="i in 4" :key="i" class="entry skeleton-entry">
+        <div class="entry-cover sk-block"></div>
+        <div class="entry-info">
+          <div class="sk-line sk-w30"></div>
+          <div class="sk-line sk-w60"></div>
+          <div class="sk-line sk-w40"></div>
+        </div>
       </div>
     </div>
 
-    <!-- 加载失败：错误态 + 重试 -->
+    <!-- 错误态 -->
     <div v-else-if="loadError" class="state-box">
-      <el-empty description="项目加载失败">
-        <el-button type="primary" plain @click="loadProjects">重新加载</el-button>
-      </el-empty>
+      <p class="state-title">项目加载失败</p>
+      <button class="text-btn" type="button" @click="loadProjects">重新加载 →</button>
     </div>
 
     <!-- 空态 -->
-    <div v-else-if="projects.length === 0" class="state-box">
-      <el-empty description="还没有项目，去创建第一个吧">
-        <el-button type="primary" @click="goNew">立即创建</el-button>
-      </el-empty>
+    <div v-else-if="projects.length === 0" class="state-box hd-rise">
+      <p class="hd-overline">Empty</p>
+      <p class="state-title">还没有项目</p>
+      <p class="state-desc">上传第一张户型图，创建你的第一个设计方案</p>
+      <button class="ink-btn" type="button" @click="goNew">立即创建</button>
     </div>
 
-    <!-- 项目卡片流 -->
-    <div v-else class="grid">
+    <!-- 项目编辑列表 -->
+    <div v-else class="entry-list">
       <article
-        v-for="p in projects"
+        v-for="(p, i) in projects"
         :key="p.id"
-        class="card"
+        class="entry hd-rise"
+        :style="{ animationDelay: `${0.08 + i * 0.07}s` }"
         role="button"
         tabindex="0"
         @click="goDetail(p.id)"
         @keydown.enter="goDetail(p.id)"
       >
-        <div class="cover-wrap">
-          <img v-if="p.designImageUrl" :src="p.designImageUrl" class="cover" alt="" />
-          <div v-else class="cover placeholder">暂无设计图</div>
+        <div class="entry-cover">
+          <img v-if="p.designImageUrl" :src="p.designImageUrl" class="cover-img" alt="" loading="lazy" />
+          <div v-else class="cover-empty">
+            <span class="cover-empty-mark" aria-hidden="true">⌖</span>
+            <span>暂无设计图</span>
+          </div>
+          <span class="entry-no">{{ String(i + 1).padStart(2, '0') }}</span>
         </div>
-        <div class="info">
-          <div class="name">{{ p.name }}</div>
-          <div v-if="p.description" class="desc">{{ p.description }}</div>
-          <div class="meta">
-            <span class="label">{{ p.styleLabel || p.style || '未设置风格' }}</span>
-            <time class="time">{{ formatTime(p.createdAt) }}</time>
+        <div class="entry-info">
+          <p class="entry-style">{{ p.styleLabel || p.style || '未设置风格' }}</p>
+          <h3 class="entry-name">{{ p.name }}</h3>
+          <p v-if="p.description" class="entry-desc">{{ p.description }}</p>
+          <div class="entry-meta">
+            <time class="meta-time">{{ formatTime(p.createdAt) }}</time>
+            <span class="meta-go" aria-hidden="true">查看详情 →</span>
           </div>
         </div>
       </article>
@@ -101,10 +110,10 @@ function goDetail(id) {
   router.push(`/projects/${id}`)
 }
 
-// ISO 时间格式化为 2026-09-14 14:28
+// ISO 时间格式化为 2026.09.14
 function formatTime(t) {
   if (!t) return ''
-  return String(t).replace('T', ' ').slice(0, 16)
+  return String(t).slice(0, 10).replaceAll('-', '.')
 }
 </script>
 
@@ -112,140 +121,218 @@ function formatTime(t) {
 .page {
   max-width: var(--hd-container-max);
   margin: 0 auto;
-  padding: var(--hd-space-2) var(--hd-space-2) var(--hd-space-4);
+  padding: var(--hd-space-4) var(--hd-space-4) var(--hd-space-6);
 }
 
-.page-header {
+/* ---- 页头 ---- */
+.page-head {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: var(--hd-space-2);
-  padding: var(--hd-space-1) 0 var(--hd-space-2);
+  gap: var(--hd-space-3);
+  padding-bottom: var(--hd-space-3);
+  border-bottom: var(--hd-hairline-strong);
 }
-.title {
-  margin: 0;
-  font-size: var(--hd-text-h1);
-  line-height: var(--hd-text-h1-line);
-  font-weight: var(--hd-font-weight-medium);
+.head-title {
+  margin-top: 8px;
+  font-size: 36px;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
 }
 
-/* 新建项目按钮：实心橙色，居页头右侧 */
-.new-project-btn {
+.new-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 8px 16px;
+  gap: 8px;
+  padding: 8px 0;
   border: none;
-  border-radius: var(--hd-radius-base);
-  background: var(--hd-primary-600);
-  color: #fff;
+  background: none;
+  color: var(--hd-ink);
+  font-family: inherit;
   font-size: var(--hd-text-caption);
-  line-height: var(--hd-text-caption-line);
+  letter-spacing: 0.12em;
   cursor: pointer;
-  transition: background-color var(--hd-duration-fast) ease-out, transform var(--hd-duration-fast) ease-out;
 }
-.new-project-btn:hover {
-  background: var(--hd-primary-700);
+.new-arrow {
+  transition: transform var(--hd-duration-fast) ease-out;
 }
-.new-project-btn:active {
-  transform: scale(0.98);
-}
+.new-btn:hover { color: var(--hd-primary-700); }
+.new-btn:hover .new-arrow { transform: translateX(5px); }
 
-/* 卡片网格：免媒体查询自动换列 */
-.grid {
-  margin-top: var(--hd-space-2);
+/* ---- 编辑条目 ---- */
+.entry-list {
+  margin-top: 4px;
+}
+.entry {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--hd-space-2);
-}
-.card {
-  background: #fff;
-  border-radius: var(--hd-radius-lg);
-  overflow: hidden;
+  grid-template-columns: 248px 1fr;
+  gap: var(--hd-space-3);
+  padding: var(--hd-space-3) 0;
+  border-bottom: var(--hd-hairline);
   cursor: pointer;
-  border: 1px solid var(--hd-neutral-200);
-  transition: transform var(--hd-duration-fast) ease-out, box-shadow var(--hd-duration-fast) ease-out;
+  outline: none;
+  transition: background-color var(--hd-duration-fast) ease-out;
 }
-.card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(92, 42, 14, 0.08);
-}
-.cover-wrap {
+.entry:hover { background-color: rgba(221, 213, 198, 0.18); }
+.entry:focus-visible { background-color: rgba(221, 213, 198, 0.28); }
+
+.entry-cover {
+  position: relative;
   aspect-ratio: 16 / 10;
   background: var(--hd-neutral-100);
+  overflow: hidden;
+  border-radius: var(--hd-radius-base);
 }
-.cover {
+.cover-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.6s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
-.cover.placeholder {
+.entry:hover .cover-img { transform: scale(1.04); }
+
+.cover-empty {
+  width: 100%;
+  height: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   color: var(--hd-neutral-400);
   font-size: var(--hd-text-caption);
+  letter-spacing: 0.08em;
 }
-.skeleton-img {
-  width: 100%;
-  aspect-ratio: 16 / 10;
-}
-.skeleton-line {
-  margin: var(--hd-space-2);
-}
-.skeleton-line.short {
-  width: 60%;
+.cover-empty-mark { font-size: 22px; color: var(--hd-neutral-300); }
+
+/* 图上编号：图纸标注感 */
+.entry-no {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  font-family: var(--hd-font-mono);
+  font-size: var(--hd-text-overline);
+  letter-spacing: 0.15em;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
 }
 
-.info {
-  padding: var(--hd-space-2);
+.entry-info {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+  min-width: 0;
 }
-.name {
-  font-size: var(--hd-text-h3);
-  line-height: var(--hd-text-h3-line);
-  font-weight: var(--hd-font-weight-medium);
+.entry-style {
+  font-family: var(--hd-font-mono);
+  font-size: var(--hd-text-overline);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--hd-primary-700);
 }
-.desc {
-  margin-top: 2px;
+.entry-name {
+  margin: 6px 0 8px;
+  font-size: var(--hd-text-h2);
+  line-height: var(--hd-text-h2-line);
+  transition: color var(--hd-duration-fast);
+}
+.entry:hover .entry-name { color: var(--hd-primary-700); }
+
+.entry-desc {
   color: var(--hd-neutral-500);
   font-size: var(--hd-text-caption);
+  line-height: var(--hd-text-caption-line);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.meta {
-  margin-top: var(--hd-space-1);
+.entry-meta {
+  margin-top: auto;
+  padding-top: var(--hd-space-1);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--hd-space-1);
-}
-.label {
-  color: var(--hd-primary-700);
-  font-size: var(--hd-text-overline);
-  background: var(--hd-primary-50);
-  padding: 2px 8px;
-  border-radius: 999px;
-}
-.time {
   color: var(--hd-neutral-400);
   font-size: var(--hd-text-overline);
 }
+.meta-time { font-family: var(--hd-font-mono); letter-spacing: 0.08em; }
+.meta-go {
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity var(--hd-duration-fast), transform var(--hd-duration-fast);
+  letter-spacing: 0.08em;
+}
+.entry:hover .meta-go {
+  opacity: 1;
+  transform: translateX(0);
+  color: var(--hd-primary-700);
+}
 
+/* ---- 骨架（细线块）---- */
+.skeleton-entry { cursor: default; }
+.skeleton-entry:hover { background: none; }
+.sk-block {
+  background: linear-gradient(90deg, var(--hd-neutral-100) 25%, var(--hd-neutral-200) 37%, var(--hd-neutral-100) 63%);
+  background-size: 400% 100%;
+  animation: sk-shimmer 1.4s ease infinite;
+}
+.sk-line {
+  height: 14px;
+  margin-bottom: 12px;
+  border-radius: 2px;
+}
+.sk-w30 { width: 30%; }
+.sk-w60 { width: 60%; height: 20px; }
+.sk-w40 { width: 40%; }
+@keyframes sk-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* ---- 状态页 ---- */
 .state-box {
   padding: var(--hd-space-6) 0;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--hd-space-1);
+}
+.state-title {
+  font-family: var(--hd-font-display);
+  font-size: var(--hd-text-h2);
+  color: var(--hd-ink);
+}
+.state-desc { color: var(--hd-neutral-500); font-size: var(--hd-text-caption); }
+.ink-btn {
+  margin-top: var(--hd-space-2);
+  padding: 11px 28px;
+  border: 1px solid var(--hd-ink);
+  background: var(--hd-ink);
+  color: #f7f4ee;
+  font-family: inherit;
+  font-size: var(--hd-text-caption);
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  transition: background-color var(--hd-duration-fast), color var(--hd-duration-fast);
+}
+.ink-btn:hover { background: var(--hd-primary-700); border-color: var(--hd-primary-700); }
+.text-btn {
+  border: none;
+  background: none;
+  color: var(--hd-primary-700);
+  font-family: inherit;
+  font-size: var(--hd-text-caption);
+  letter-spacing: 0.08em;
+  cursor: pointer;
 }
 
-/* sm ≥576px：内容限宽居中 */
-@media (min-width: 576px) {
-  .page {
-    max-width: var(--hd-content-max);
-  }
-}
-/* lg ≥992px：容器限宽 1200，三列网格 */
-@media (min-width: 992px) {
-  .page {
-    max-width: var(--hd-container-max);
-  }
+/* ---- 窄屏：条目转纵向 ---- */
+@media (max-width: 720px) {
+  .page { padding: var(--hd-space-3) var(--hd-space-2) var(--hd-space-5); }
+  .entry { grid-template-columns: 1fr; gap: var(--hd-space-1); }
+  .entry-cover { aspect-ratio: 16 / 9; }
+  .head-title { font-size: 28px; }
 }
 </style>

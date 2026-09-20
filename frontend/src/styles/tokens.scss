@@ -1,64 +1,68 @@
 /* ============================================
-   筑梦家 · 设计 Token（暖陶土主题）
-   依据：HouseDesign-界面设计方案 §4 配色 / §5 字体
+   筑梦家 · 设计令牌（编辑杂志 · 建筑工作室）
+   纸感米白 / 墨黑 / 克制陶土 / 宋体展示 / 细发线
    ============================================ */
 :root {
-    /* ---- 品牌主色阶（暖陶土 Terracotta）---- */
-    --hd-primary-50: #fdf3ee;
-    --hd-primary-100: #fae0d3;
-    --hd-primary-200: #f3bfa4;
-    --hd-primary-400: #e08a5a;
-    --hd-primary-600: #c05a21;
-    /* 主按钮/品牌色 */
-    --hd-primary-700: #a34a18;
+    /* ---- 品牌强调色（陶土 Terracotta，仅点睛，克制使用）---- */
+    --hd-primary-50: #f6ede6;
+    --hd-primary-100: #ecd8c9;
+    --hd-primary-200: #dcb39a;
+    --hd-primary-400: #c97643;
+    --hd-primary-600: #a84e1c;
+    /* 主按钮/品牌强调 */
+    --hd-primary-700: #8f4116;
     /* 链接/可点击文字 */
-    --hd-primary-800: #7a3712;
-    --hd-primary-900: #5c2a0e;
+    --hd-primary-800: #6e3210;
+    --hd-primary-900: #52250c;
 
-    /* ---- 中性色（暖灰）---- */
-    --hd-neutral-50: #faf9f7;
-    /* 页面背景 */
-    --hd-neutral-100: #f1efea;
-    /* 卡片背景、骨架屏 */
-    --hd-neutral-200: #e3e0d9;
-    /* 次级背景 */
-    --hd-neutral-300: #c9c5bb;
-    /* 描边、分隔线 */
-    --hd-neutral-400: #9b968a;
-    /* 禁用文字 */
-    --hd-neutral-500: #6e6a5f;
-    /* 次要文字 */
-    --hd-neutral-700: #403d36;
-    /* 强调文字 */
-    --hd-neutral-800: #2c2a26;
-    /* 主文字 */
+    /* ---- 中性色（暖纸 · 墨）---- */
+    /* 页面底色：纸张 */
+    --hd-neutral-50: #f7f4ee;
+    /* 浅底 / 悬浮 */
+    --hd-neutral-100: #efeae0;
+    /* 细发线、分隔线 */
+    --hd-neutral-200: #ddd5c6;
+    --hd-neutral-300: #c6bdab;
+    /* 描边 */
+    --hd-neutral-400: #948b7a;
+    /* 禁用、次要说明 */
+    --hd-neutral-500: #6b6356;
+    /* 次级文字 */
+    --hd-neutral-700: #453e33;
+    /* 墨：主文字 */
+    --hd-neutral-800: #211d18;
 
-    /* ---- 语义色 ---- */
-    --hd-success: #1f7a3d;
-    --hd-danger: #b3261e;
-    --hd-warning: #b45309;
-    --hd-info: #175cd3;
+    /* 语义色（略沉，融入纸调） */
+    --hd-success: #356a3d;
+    --hd-danger: #a23026;
+    --hd-warning: #9c5518;
+    --hd-info: #345d8c;
 
     /* ---- 字体 ---- */
+    /* 正文：系统无衬线（中文用苹方/雅黑） */
     --hd-font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC',
         'HarmonyOS Sans SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
-    --hd-font-mono: ui-monospace, 'SF Mono', Consolas, monospace;
+    /* 展示：衬线宋体栈——Windows 新宋体 / macOS 宋体 / 装了思源宋自动升级，零网络成本 */
+    --hd-font-display: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC',
+        'STSong', 'SimSun', serif;
+    /* 编号 / 标签 / 数据：等宽，像图纸标注 */
+    --hd-font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Consolas,
+        'Courier New', monospace;
 
-    /* ---- 字号（8px 基线模块化）---- */
-    --hd-text-display: 32px;
-    /* 移动端 32/40，桌面 48/56 */
-    --hd-text-display-line: 40px;
-    --hd-text-h1: 32px;
+    /* ---- 字号 ---- */
+    --hd-text-display: 44px;
+    --hd-text-display-line: 52px;
+    --hd-text-h1: 30px;
     --hd-text-h1-line: 40px;
-    --hd-text-h2: 24px;
+    --hd-text-h2: 23px;
     --hd-text-h2-line: 32px;
-    --hd-text-h3: 20px;
+    --hd-text-h3: 19px;
     --hd-text-h3-line: 28px;
-    --hd-text-body: 16px;
-    --hd-text-body-line: 24px;
-    --hd-text-caption: 14px;
+    --hd-text-body: 15px;
+    --hd-text-body-line: 25px;
+    --hd-text-caption: 13px;
     --hd-text-caption-line: 20px;
-    --hd-text-overline: 12px;
+    --hd-text-overline: 11px;
     --hd-text-overline-line: 16px;
 
     --hd-font-weight-regular: 400;
@@ -69,18 +73,24 @@
     --hd-space-2: 16px;
     --hd-space-3: 24px;
     --hd-space-4: 32px;
-    --hd-space-5: 40px;
-    --hd-space-6: 48px;
+    --hd-space-5: 48px;
+    --hd-space-6: 64px;
 
-    /* ---- 圆角 / 动效 ---- */
-    --hd-radius-base: 8px;
-    --hd-radius-lg: 12px;
+    /* ---- 圆角：建筑风收小圆角 ---- */
+    --hd-radius-base: 3px;
+    --hd-radius-lg: 4px;
     --hd-duration-fast: 0.2s;
-    --hd-duration-slow: 0.3s;
+    --hd-duration-slow: 0.35s;
 
     /* ---- 布局 ---- */
-    --hd-container-max: 1200px;
+    --hd-container-max: 1180px;
     --hd-content-max: 540px;
-    /* sm 断点内容最大宽 */
     --hd-tab-bar-height: 56px;
+
+    /* ---- 杂志风专用 ---- */
+    --hd-hairline: 1px solid var(--hd-neutral-200);
+    --hd-hairline-strong: 1px solid var(--hd-neutral-300);
+    --hd-ink: var(--hd-neutral-800);
+    --hd-paper: var(--hd-neutral-50);
+    --hd-side-nav-width: 208px;
 }

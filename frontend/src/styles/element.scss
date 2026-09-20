@@ -1,20 +1,86 @@
 /* ============================================
-   Element Plus 主题覆盖（暖陶土）
-   依据：HouseDesign-界面设计方案 §7
+   Element Plus 主题覆盖（编辑杂志 · 建筑工作室）
+   原则：去大圆角 / 去厚重阴影 / 细发线 / 克制陶土
    ============================================ */
 :root {
-  --el-color-primary: #c05a21;
-  --el-color-primary-light-3: #d8875a;
-  --el-color-primary-light-5: #e5a883;
-  --el-color-primary-light-7: #f2cbb2;
-  --el-color-primary-light-8: #f6dcc9;
-  --el-color-primary-light-9: #fdf3ee;
-  --el-color-primary-dark-2: #a34a18;
-  --el-border-radius-base: 8px;
+  --el-color-primary: #8f4116;
+  --el-color-primary-light-3: #b06a40;
+  --el-color-primary-light-5: #c9906c;
+  --el-color-primary-light-7: #e0baa2;
+  --el-color-primary-light-8: #ebd2c1;
+  --el-color-primary-light-9: #f6ede6;
+  --el-color-primary-dark-2: #6e3210;
+  --el-border-radius-base: 3px;
+  --el-border-radius-small: 2px;
   --el-font-size-base: 14px;
-  /* 语义色走 el-tag 等组件时统一替换 */
-  --el-color-success: #1f7a3d;
-  --el-color-danger: #b3261e;
-  --el-color-warning: #b45309;
-  --el-color-info: #175cd3;
+  --el-text-color-primary: #211d18;
+  --el-text-color-regular: #453e33;
+  --el-border-color: #ddd5c6;
+  --el-border-color-light: #ddd5c6;
+  --el-border-color-lighter: #e6e0d4;
+  --el-fill-color-blank: #fffdf9;
+  --el-bg-color: #fffdf9;
+  --el-color-success: #356a3d;
+  --el-color-danger: #a23026;
+  --el-color-warning: #9c5518;
+  --el-color-info: #345d8c;
+  /* 去掉多数弹层的厚重阴影，改用细发线 */
+  --el-box-shadow: 0 1px 2px rgba(33, 29, 24, 0.06), 0 8px 24px rgba(33, 29, 24, 0.08);
+  --el-box-shadow-light: 0 1px 2px rgba(33, 29, 24, 0.05);
+}
+
+/* 输入框：纸白底、细发线、小圆角，聚焦时陶土下划线感 */
+.el-input__wrapper {
+  border-radius: var(--el-border-radius-base);
+  box-shadow: 0 0 0 1px var(--el-border-color) inset;
+  background: transparent;
+  transition: box-shadow var(--el-transition-duration-fast);
+}
+.el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--hd-neutral-400) inset;
+}
+.el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px var(--hd-primary-600) inset,
+              0 1px 0 0 var(--hd-primary-600);
+}
+.el-input__inner { font-family: var(--hd-font-family); }
+
+/* 按钮：方正、无阴影；主按钮陶土实底 */
+.el-button {
+  border-radius: var(--el-border-radius-base);
+  font-weight: var(--hd-font-weight-medium);
+  letter-spacing: 0.04em;
+  box-shadow: none !important;
+}
+.el-button:focus-visible {
+  outline: 2px solid var(--hd-primary-600);
+  outline-offset: 2px;
+}
+
+/* 对话框：纸白、细线、小圆角 */
+.el-dialog {
+  border-radius: var(--hd-radius-lg);
+  border: var(--hd-hairline);
+}
+.el-dialog__title {
+  font-family: var(--hd-font-display);
+  letter-spacing: 0.01em;
+}
+
+/* 骨架屏色调贴近纸张 */
+.el-skeleton__item {
+  background: var(--hd-neutral-100);
+}
+.el-skeleton__paragraph > li {
+  background: linear-gradient(90deg,
+    var(--hd-neutral-100) 25%,
+    var(--hd-neutral-200) 37%,
+    var(--hd-neutral-100) 63%);
+  background-size: 400% 100%;
+}
+
+/* 下拉/气泡：细线轻阴影 */
+.el-popper.is-light {
+  border: var(--hd-hairline);
+  border-radius: var(--el-radius-base);
 }

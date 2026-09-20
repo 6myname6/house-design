@@ -12,16 +12,44 @@ body,
 
 body {
   font-family: var(--hd-font-family);
-  background-color: var(--hd-neutral-50);
-  color: var(--hd-neutral-800);
+  background-color: var(--hd-paper);
+  color: var(--hd-ink);
   font-size: var(--hd-text-body);
   line-height: var(--hd-text-body-line);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* 标题默认走衬线展示字体，营造杂志/图纸气质 */
+h1, h2, h3, h4 {
+  font-family: var(--hd-font-display);
+  font-weight: var(--hd-font-weight-medium);
+  letter-spacing: 0.01em;
+}
+
+a {
+  color: var(--hd-primary-700);
+}
+
+/* 杂志小标签：等宽、大字距、小字，像图纸图注 */
+.hd-overline {
+  font-family: var(--hd-font-mono);
+  font-size: var(--hd-text-overline);
+  line-height: var(--hd-text-overline-line);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--hd-neutral-500);
+}
+
+/* 细发线（横向） */
+.hd-hairline {
+  border: none;
+  border-top: var(--hd-hairline);
 }
 
 /* 无障碍：焦点可见 */
 :focus-visible {
-  outline: 2px solid var(--hd-primary-700);
+  outline: 2px solid var(--hd-primary-600);
   outline-offset: 2px;
 }
 
@@ -38,9 +66,39 @@ time {
   font-variant-numeric: tabular-nums;
 }
 
+/* 页面错峰入场（配合 inline animation-delay 使用） */
+@keyframes hd-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.hd-rise {
+  animation: hd-rise 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* 细横线生长（标题装饰用） */
+@keyframes hd-line {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* 滚动条：细、纸调 */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--hd-neutral-300);
+  border: 3px solid var(--hd-paper);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--hd-neutral-400); }
+
+/* 选中文本色：陶土浅底 */
+::selection {
+  background: var(--hd-primary-100);
+  color: var(--hd-ink);
+}
+
 /* 尊重系统减弱动效 */
 @media (prefers-reduced-motion: reduce) {
-
   *,
   *::before,
   *::after {
