@@ -5,14 +5,18 @@
 > 需求：新增「AI 设计助手」对话能力，AI 具备图文理解（用户可发装修图片提问）。
 > 技术方案：LangChain4j 1.0.1-beta6（`@AiService` 声明式）+ 智谱 **glm-4.6v-flash** 视觉模型（OpenAI 兼容协议），Key 走 `ZHIPU_API_KEY` 环境变量。
 
-- [x] **模型接入层**：`pom.xml` 引入 langchain4j open-ai + spring boot starter；`AiConfig` 注册 `visionChatModel`；yml 配 `langchain4j.open-ai.chat-model`
-- [x] **声明式接口**：`AiChatAssistant`（`@AiService` + 装修设计师 `@SystemMessage`），纯文本 / 文+图两个重载
+- [x] **模型接入层**：`pom.xml` 引入 langchain4j open-ai + spring boot starter；yml 配 `langchain4j.open-ai.chat-model`，由 Starter 自动装配 `openAiChatModel`（手写 AiConfig 已删除，避免重复 bean）
+- [x] **声明式接口**：`AiChatAssistant`（`@AiService` + 装修设计师 `@SystemMessage`，`SYSTEM_PROMPT` 常量供图文链路复用）；**仅保留纯文本重载**（1.0.1 的 @AiService 不支持图片参数，见下方踩坑）
 - [x] **Service 分层**：`AiChatService` + `AiChatServiceImpl`，纯文本 / 图文 / 纯图（默认提问"请解释这张图"）三分支
 - [x] **异常转译**：`RateLimitException / TimeoutException / InternalServerException / UnresolvedModelServerException` → `BusinessException(503, "AI 服务繁忙")`；401（Key 错/欠费）不吞，原样暴露
 - [x] **请求 DTO**：`AiChatRequest { question, images(List<String> DataURL) }`
-- [ ] **正式对话接口**：`AiChatController` —— `POST /api/ai/chat`（JSON：question + images DataURL 列表）；Controller 内解析 `data:{mime};base64,{数据}` 头 → `ImageContent.from(base64, mimeType)`；四分支（双空 400 / 纯文本 / 纯图 / 图文）。**注意：图片走 base64，localhost URL 智谱云端拉不到**
-- [ ] **清理测试接口**：新接口 Swagger 实测通过后删除 `TestAiController`（GET /api/chat，`@RequestParam List<ImageContent>` 无法绑定，仅纯文本可用）
-- [ ] **多轮记忆**：`ChatMemoryProvider`（会话 id → `MessageWindowChatMemory`，起步内存 Map，重启丢失可接受）+ `@AiService` 方法加 `@MemoryId String conversationId`；DTO 加 `conversationId`（首轮为空则生成）
+- [x] **正式对话接口**：`AiChatController` —— `POST /api/ai/chat`（JSON：question + images DataURL 列表）；Controller 内解析 `data:{mime};base64,{数据}` 头 → `ImageContent.from(base64, mimeType)`；四分支（双空/空数组 400 / 纯文本 / 纯图 / 图文）；DataURL 缺分号等非法格式 400（2026-09-19 Swagger 实测 5 用例通过，图片走 base64，localhost URL 智谱云端拉不到）
+- [x] **清理测试接口**：已删除 `TestAiController`（GET /api/chat，`@RequestParam List<ImageContent>` 无法绑定，仅纯文本可用）
+- [x] **版本踩坑（重要）**：langchain4j 1.0.1（starter 1.0.1-beta6 实际依赖的核心包）的声明式 `@AiService` **不支持 `List<ImageContent>` 方法参数**（`DefaultAiServices.validateParameters` 要求 ≥2 参时每个参数都必须有 @V/@UserMessage/@UserName/@MemoryId，且消息组装只取文本模板）。最终架构：**纯文本走 `AiChatAssistant`（@AiService）；图文/纯图在 Service 层直接注入 `ChatModel`，手工 `UserMessage.from(List<Content>{TextContent + ImageContent...})` 调用**（注意 `UserMessage.from(String, List)` 的 String 是昵称不是正文）
+- [x] **Bean 冲突踩坑**：Starter 已按 yml 自动装配 `openAiChatModel`，不要再手写 `AiConfig` 里的 `@Bean ChatModel`（两个同类型 bean 导致启动报 IllegalConfigurationException），已删除 AiConfig
+- [ ] **纯文本拒答不稳定（实测发现）**：glm-4.6v-flash 对"非装修问题礼貌拒绝"指令遵循弱（图片场景能拒，纯文本问冒泡排序仍答代码）；待强化系统提示词（few-shot 示例 / 更强约束措辞）后回归
+- [ ] **多轮记忆**：`ChatMemoryProvider`（会话 id → `MessageWindowChatMemory`，起步内存 Map，重启丢失可接受）+ `@AiService` 方法加 `@MemoryId String conversationId`；DTO 加 `conversationId`（首轮为空则生成）。注意：图文链路用的是裸 `ChatModel`，记忆需要手工把历史消息拼进消息列表，或等升级支持多模态参数的 langchain4j 版本后回归 @AiService
+- [ ] **图片 URL/base64 混合模式（等接入 OSS，对应 F-3）**：`AiChatController.toImageContent` 按前缀分流——`http(s)://` 开头走 `ImageContent.from(URI.create(url))`（智谱服务器自行下载），`data:` 开头走现有 DataURL 解析；接口契约 `images: string[]` 与前端零改动。约束：必须公网可达（公共读或有效期 ≥5min 的签名 URL；用公网 endpoint 而非 `-internal`；不能开 Referer 防盗链，智谱拉取不带 Referer）。适用：已存档图片（帖子图/设计图）走 URL 省 33% base64 膨胀，用户本地新图仍走 base64
 - [ ] **前端聊天页**：`api/ai.js` + `views/AiChat.vue`（气泡 UI、图片选择/预览、`FileReader` 转 DataURL、loading/503 重试）+ 路由 + TabBar 入口
 
 ## 新增需求（2026-09-14，前端）

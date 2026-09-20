@@ -80,7 +80,7 @@
 - **文件存储抽象**：`FileStorageService` 接口 + `LocalFileStorageServiceImpl` 磁盘实现，业务层只管传 URL；未来换 OSS 只换实现类，业务零改动。
 - **点赞防重与级联清理**：帖子/评论点赞表均以 `UNIQUE(目标id, user_id)` 防重复；删帖用 `@Transactional` 级联删除评论与两种点赞。
 - **Controller 薄 / Service 厚**：Controller 只收参数、调服务、包 `Result`；校验、归属判断、事务全在 Service 层，职责清晰。
-- **声明式 AI Service（LangChain4j）**：`@AiService` 接口 + `@SystemMessage` 角色设定，框架自动完成 `String/ImageContent` → 多模态消息组装与模型调用；Service 层只保留异常转译（429/超时/5xx → 503，401 配置错误不吞）。
+- **声明式 + 原生双路 AI 接入（LangChain4j）**：纯文本走 `@AiService` + `@SystemMessage` 角色设定；图文链路因 1.0.1 版 AiService 不支持图片参数，直连自动装配的 `ChatModel` 手工组装 `TextContent + ImageContent` 多模态消息；Service 层统一异常转译（429/超时/5xx → 503，401 配置错误不吞）。
 - **安全配置零落地**：数据库密码、JWT 密钥、AI Key 全部经环境变量注入（`${VAR:default}`），不硬编码。
 
 ---
