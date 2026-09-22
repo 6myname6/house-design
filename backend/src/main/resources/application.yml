@@ -58,8 +58,10 @@ app:
     chat-model: "glm-4.7-flash"
     chat-timeout-seconds: 60
     vsion-model: glm-4.6v-flash
-
-
+  
+  sms:
+    code-ttl-seconds: 300
+    resend-interval-seconds: 60
 
   login-limit:
     max-fail-count: 5 #连续失败次数

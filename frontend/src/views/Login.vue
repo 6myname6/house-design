@@ -24,25 +24,54 @@
         <p class="hd-overline">Sign in</p>
         <h2 class="panel-title">登 录</h2>
 
-        <el-form :model="form" :rules="rules" ref="formRef" size="large" class="auth-form" @submit.prevent="onSubmit">
-          <el-form-item prop="username">
-            <el-input v-model="form.username" placeholder="用户名" maxlength="32" autocomplete="username" />
-          </el-form-item>
-          <el-form-item prop="password">
-            <el-input
-              v-model="form.password"
-              type="password"
-              placeholder="密码"
-              maxlength="32"
-              show-password
-              autocomplete="current-password"
-              @keyup.enter="onSubmit"
-            />
-          </el-form-item>
-          <el-button type="primary" native-type="submit" class="submit" :loading="loading" @click="onSubmit">
-            进 入
-          </el-button>
-        </el-form>
+        <el-tabs v-model="loginType" class="login-tabs">
+          <el-tab-pane label="账号登录" name="account">
+            <el-form :model="form" :rules="rules" ref="formRef" size="large" class="auth-form" @submit.prevent="onSubmit">
+              <el-form-item prop="username">
+                <el-input v-model="form.username" placeholder="用户名" maxlength="32" autocomplete="username" />
+              </el-form-item>
+              <el-form-item prop="password">
+                <el-input
+                  v-model="form.password"
+                  type="password"
+                  placeholder="密码"
+                  maxlength="32"
+                  show-password
+                  autocomplete="current-password"
+                  @keyup.enter="onSubmit"
+                />
+              </el-form-item>
+              <el-button type="primary" native-type="submit" class="submit" :loading="loading" @click="onSubmit">
+                进 入
+              </el-button>
+            </el-form>
+          </el-tab-pane>
+
+          <el-tab-pane label="手机登录" name="phone">
+            <el-form :model="phoneForm" :rules="phoneRules" ref="phoneFormRef" size="large" class="auth-form" @submit.prevent="onPhoneSubmit">
+              <el-form-item prop="phone">
+                <el-input v-model="phoneForm.phone" placeholder="手机号" maxlength="11" autocomplete="tel" />
+              </el-form-item>
+              <el-form-item prop="code">
+                <div class="code-row">
+                  <el-input
+                    v-model="phoneForm.code"
+                    placeholder="6 位验证码"
+                    maxlength="6"
+                    inputmode="numeric"
+                    @keyup.enter="onPhoneSubmit"
+                  />
+                  <el-button class="code-btn" :disabled="countdown > 0" @click="onSendCode">
+                    {{ countdown > 0 ? `${countdown}s 后重发` : '获取验证码' }}
+                  </el-button>
+                </div>
+              </el-form-item>
+              <el-button type="primary" native-type="submit" class="submit" :loading="phoneLoading" @click="onPhoneSubmit">
+                进 入
+              </el-button>
+            </el-form>
+          </el-tab-pane>
+        </el-tabs>
 
         <p class="switch-line">
           还没有账号？
@@ -54,10 +83,11 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '../stores/user'
+import { sendSmsCodeApi } from '../api/auth'
 
 const router = useRouter()
 const route = useRoute()
@@ -88,6 +118,68 @@ async function onSubmit() {
     loading.value = false
   }
 }
+
+// ---- 手机验证码登录 ----
+const loginType = ref('account')
+const phoneLoading = ref(false)
+const phoneFormRef = ref(null)
+const phoneForm = reactive({ phone: '', code: '' })
+
+const phoneRules = {
+  phone: [
+    { required: true, message: '请输入手机号', trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确', trigger: 'blur' }
+  ],
+  code: [
+    { required: true, message: '请输入验证码', trigger: 'blur' },
+    { pattern: /^\d{6}$/, message: '请输入 6 位数字验证码', trigger: 'blur' }
+  ]
+}
+
+// 60 秒发送倒计时
+const countdown = ref(0)
+let countdownTimer = null
+
+async function onSendCode() {
+  // 先只校验手机号字段
+  try {
+    await phoneFormRef.value.validateField('phone')
+  } catch {
+    return
+  }
+  await sendSmsCodeApi({ phone: phoneForm.phone })
+  ElMessage.success('验证码已发送，请查收（Mock 环境请看后端日志）')
+  countdown.value = 60
+  countdownTimer = setInterval(() => {
+    countdown.value -= 1
+    if (countdown.value <= 0) {
+      clearInterval(countdownTimer)
+      countdownTimer = null
+    }
+  }, 1000)
+}
+
+async function onPhoneSubmit() {
+  try {
+    await phoneFormRef.value.validate()
+  } catch {
+    return
+  }
+  phoneLoading.value = true
+  try {
+    await userStore.loginByPhone(phoneForm.phone, phoneForm.code)
+    ElMessage.success('登录成功')
+    router.push(route.query.redirect || '/projects')
+  } finally {
+    phoneLoading.value = false
+  }
+}
+
+onUnmounted(() => {
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+  }
+})
 </script>
 
 <style scoped>
@@ -101,7 +193,7 @@ async function onSubmit() {
 .auth-stage {
   position: relative;
   background: var(--hd-ink);
-  color: #f3ede2;
+  color: var(--hd-on-ink);
   padding: var(--hd-space-6);
   display: flex;
   flex-direction: column;
@@ -114,7 +206,7 @@ async function onSubmit() {
   position: absolute;
   inset: 0;
   background-image:
-    radial-gradient(rgba(243, 237, 226, 0.05) 1px, transparent 1px);
+    radial-gradient(color-mix(in srgb, var(--hd-on-ink) 5%, transparent) 1px, transparent 1px);
   background-size: 22px 22px;
   pointer-events: none;
 }
@@ -123,7 +215,7 @@ async function onSubmit() {
   z-index: 1;
   max-width: 460px;
 }
-.auth-stage .hd-overline { color: rgba(243, 237, 226, 0.55); }
+.auth-stage .hd-overline { color: color-mix(in srgb, var(--hd-on-ink) 55%, transparent); }
 
 .stage-title {
   margin-top: var(--hd-space-2);
@@ -145,13 +237,13 @@ async function onSubmit() {
   font-size: 22px;
   line-height: 1.7;
   letter-spacing: 0.04em;
-  color: rgba(243, 237, 226, 0.92);
+  color: color-mix(in srgb, var(--hd-on-ink) 92%, transparent);
 }
 .stage-note {
   margin-top: var(--hd-space-2);
   font-size: var(--hd-text-caption);
   letter-spacing: 0.08em;
-  color: rgba(243, 237, 226, 0.5);
+  color: color-mix(in srgb, var(--hd-on-ink) 50%, transparent);
 }
 .stage-index {
   position: absolute;
@@ -160,7 +252,7 @@ async function onSubmit() {
   font-family: var(--hd-font-mono);
   font-size: 13px;
   letter-spacing: 0.3em;
-  color: rgba(243, 237, 226, 0.35);
+  color: color-mix(in srgb, var(--hd-on-ink) 35%, transparent);
 }
 
 /* ---- 右：表单 ---- */
@@ -196,6 +288,36 @@ async function onSubmit() {
 .submit:focus {
   background: var(--hd-primary-700);
   border-color: var(--hd-primary-700);
+}
+
+/* ---- 登录方式 Tab ---- */
+.login-tabs :deep(.el-tabs__header) {
+  margin-bottom: var(--hd-space-3);
+}
+.login-tabs :deep(.el-tabs__nav-wrap::after) {
+  background-color: var(--hd-neutral-200);
+}
+.login-tabs :deep(.el-tabs__item) {
+  font-size: var(--hd-text-caption);
+  letter-spacing: 0.15em;
+  color: var(--hd-neutral-500);
+}
+.login-tabs :deep(.el-tabs__item.is-active) {
+  color: var(--hd-ink);
+}
+.login-tabs :deep(.el-tabs__active-bar) {
+  background-color: var(--hd-ink);
+}
+
+/* ---- 验证码输入行 ---- */
+.code-row {
+  display: flex;
+  gap: var(--hd-space-1);
+  width: 100%;
+}
+.code-btn {
+  flex-shrink: 0;
+  min-width: 108px;
 }
 
 .switch-line {

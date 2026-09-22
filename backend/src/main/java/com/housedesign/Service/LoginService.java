@@ -2,6 +2,7 @@ package com.housedesign.Service;
 
 import com.housedesign.dto.request.LoginRequest;
 import com.housedesign.dto.request.RegisterRequest;
+import com.housedesign.dto.request.SmsLoginRequest;
 import com.housedesign.dto.response.LoginInfoResponse;
 
 public interface LoginService {
@@ -11,4 +12,7 @@ public interface LoginService {
 
     // 登录接口
     LoginInfoResponse login(LoginRequest loginRequest);
+
+    // 验证码登录或注册
+    LoginInfoResponse loginByPhone(SmsLoginRequest smsLoginRequest);
 }

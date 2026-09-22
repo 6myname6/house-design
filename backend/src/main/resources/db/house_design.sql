@@ -8,13 +8,15 @@
 CREATE TABLE IF NOT EXISTS `t_user`
 (
     `id`         BIGINT       NOT NULL AUTO_INCREMENT COMMENT '用户 ID',
-    `username`   VARCHAR(64)  NOT NULL COMMENT '用户名',
-    `password`   VARCHAR(255) NOT NULL COMMENT '密码（BCrypt 加密存储）',
+    `username`   VARCHAR(64)  NOT NULL COMMENT '用户名；手机验证码自动注册的用户 username=手机号',
+    `phone`      VARCHAR(11)           DEFAULT NULL COMMENT '手机号',
+    `password`   VARCHAR(255)          DEFAULT NULL COMMENT '密码（BCrypt 加密存储，短信注册用户为空）',
     `nickname`   VARCHAR(64)           DEFAULT NULL COMMENT '昵称，默认取 username',
     `avatar`     VARCHAR(255)          DEFAULT NULL COMMENT '头像 URL',
     `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间（不可更新）',
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_username` (`username`)
+    UNIQUE KEY `uk_username` (`username`),
+    UNIQUE KEY `uk_phone` (`phone`)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT ='用户表';

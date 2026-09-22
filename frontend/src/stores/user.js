@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { loginApi, registerApi, getMe, updateMe } from '../api/auth'
+import { loginApi, registerApi, getMe, updateMe, smsLoginApi } from '../api/auth'
 import { getToken, setToken, removeToken } from '../utils/storage'
 
 export const useUserStore = defineStore('user', {
@@ -14,6 +14,14 @@ export const useUserStore = defineStore('user', {
     // 登录：拿 token 存 localStorage + state
     async login(username, password) {
       const token = await loginApi({ username, password })
+      this.token = token
+      setToken(token)
+      // 登录成功后拉一次用户信息回显
+      await this.fetchMe()
+    },
+    // 手机验证码登录：拿 token 存 localStorage + state（新手机号后端自动建档）
+    async loginByPhone(phone, code) {
+      const token = await smsLoginApi({ phone, code })
       this.token = token
       setToken(token)
       // 登录成功后拉一次用户信息回显

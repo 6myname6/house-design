@@ -10,6 +10,16 @@ export function loginApi(data) {
   return request.post('/api/auth/login', data)
 }
 
+// 发送短信验证码（手机登录）：data = { phone }，无返回数据
+export function sendSmsCodeApi(data) {
+  return request.post('/api/auth/sms/code', data)
+}
+
+// 手机号验证码登录：data = { phone, code }，返回 token 字符串
+export function smsLoginApi(data) {
+  return request.post('/api/auth/sms/login', data)
+}
+
 // 获取当前用户信息
 export function getMe() {
   return request.get('/api/auth/me')

@@ -3,6 +3,8 @@ package com.housedesign.controller;
 import com.housedesign.Service.LoginService;
 import com.housedesign.dto.request.LoginRequest;
 import com.housedesign.dto.request.RegisterRequest;
+import com.housedesign.dto.request.SmsCodeRequest;
+import com.housedesign.dto.request.SmsLoginRequest;
 import com.housedesign.dto.response.LoginInfoResponse;
 
 import jakarta.validation.Valid;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.housedesign.common.Result;
+import com.housedesign.common.SmsCodeService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 public class LoginController {
-    // 登录
+    private final SmsCodeService smsCodeService;
     private final LoginService userService;
 
     // 登录接口
@@ -50,6 +53,20 @@ public class LoginController {
             return Result.success(userId);
         }
         return Result.error(400, "抱歉，这个用户名被别人使用了，换一个试试吧~");
+    }
+
+    // 发送验证码
+    @PostMapping("/sms/code")
+    public Result<String> postAcode(@RequestBody @Valid SmsCodeRequest smsCodeRequest) {
+        smsCodeService.sendCode(smsCodeRequest.getPhone());
+        return Result.success();
+    }
+
+    // 验证码登录或注册
+    @PostMapping("/sms/login")
+    public Result<String> postMethodName(@RequestBody @Valid SmsLoginRequest smsLoginRequest) {
+        LoginInfoResponse infoResponse = userService.loginByPhone(smsLoginRequest);
+        return Result.success(infoResponse.getToken());
     }
 
 }

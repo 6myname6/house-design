@@ -1,5 +1,101 @@
 # 筑梦家 · 待办清单
 
+## 杂志风 UI 重构（编辑杂志 · 建筑工作室，🚧 进行中）
+
+> 目标：全站统一为「编辑杂志 / 建筑工作室」视觉语言——纸感米白底、墨黑文字、克制陶土点睛、宋体展示标题、等宽图纸标注、细发线分层、3-4px 收小圆角、去厚重阴影。纯视觉重构，**不改任何脚本逻辑与接口契约**。
+
+### 设计原则（所有页面共同遵守）
+
+1. **令牌单一数据源**：颜色 / 字号 / 间距 / 圆角 / 时长一律引用 `styles/tokens.scss` 的 `--hd-*` 变量，禁止在页面内写死 hex（含 `#fff`）；Element Plus 组件靠 `styles/element.scss` 全局覆盖，页面不重复造样式。
+2. **字体三分工**：页头/卡片标题用衬线 `--hd-font-display`；编号 / 时间 / 小标签用等宽 `--hd-font-mono`（配合 `.hd-overline`：大字距 + 大写）；正文默认无衬线。
+3. **分层靠发线不靠阴影**：卡片用纸白 `--el-fill-color-blank`（`#fffdf9`）底 + `--hd-hairline` 细发线；除弹层（EP 全局已配轻阴影）外不使用 box-shadow；圆角只用 `--hd-radius-base`(3px) / `--hd-radius-lg`(4px)。
+4. **页面骨架统一**（参照 Home 标杆）：`.page` 容器 → `.page-head`（overline 小标签 + 衬线标题 + 墨色主按钮）→ 内容；列表条目用 `.entry / .entry-no / .entry-meta` 杂志条目范式；空/错/加载态用 `.state-box / .ink-btn / .text-btn`。
+5. **动效克制**：入场用 `.hd-rise` 错峰（inline `animation-delay`），标题装饰用 `hd-line`；全局已尊重 `prefers-reduced-motion`，不另加花哨动画。
+6. **反白文字令牌化**：陶土/墨色实底上的文字不再写 `#fff`；动手做第一页时先在 tokens.scss 基础层补 `--hd-on-primary`（纸白反白字）、`--hd-on-ink`（Login 舞台现用的 `#f3ede2` 提炼为变量），再替换全部 `color: #fff`。
+
+### 进度
+
+- [x] **基础层**（commit b455597）：`styles/tokens.scss`（色板/字体/字号/间距/圆角/布局/杂志专用变量）、`styles/index.css`（纸底正文、衬线标题、`.hd-overline`/`.hd-hairline`/`.hd-rise`、纸调滚动条、选中文本色、reduced-motion）、`styles/element.scss`（EP 陶土主色、去圆角去阴影、输入框/按钮/对话框/骨架/弹层覆盖）
+- [x] **标杆页**（commit b455597）：`layout/TabBar.vue`（编号式侧边导航 01/02…）、`views/Home.vue`（页头 + 杂志条目列表 + 状态页范式）、`views/Login.vue`（左墨色宣言舞台 + 右纸色表单双栏，860px 断点隐藏舞台）
+- [x] **Settings.vue**：此前已是令牌化写法（28 行占位页），无需改造
+- [x] **基础层增量**：tokens.scss 补 `--hd-on-primary`（陶土底反白字 `#fffdf9`）/ `--hd-on-ink`（墨底暖纸白 `#f3ede2`）；Login 舞台原有 `#f3ede2` 与各档 rgba 透明度已归一为令牌（透明度变体用 `color-mix`，Chromium 实测支持）
+
+### 待重构页面（建议顺序，每页一个提交、浏览器实测后再下一页）
+
+- [x] **1. Register.vue**：已对齐 Login 双栏范式（2026-09-21）——左侧墨色宣言舞台（Join the Studio / 编号 02 / 注册语境文案），右侧纸色表单；复用 `hd-overline/hd-rise/hd-line` 与 860px 断点；底部「已有账号？前往登录 →」。脚本（字段/校验规则/`store.register` 自动登录跳转）逐字未动，浏览器实测：必填/长度/两次密码不一致校验均正常拦截，宽屏双栏与窄屏单栏均无控制台报错。
+- [ ] **2. ProjectDetail.vue（426 行）**：按「单篇杂志文章」重构——返回链接用 `.text-btn`；衬线大标题 + 等宽元信息（风格/创建时间/编号 NO.）；信息区与生成记录卡片 `#fff` 底（285 行）→ 纸白 + 细发线；生成状态（PENDING/PROCESSING/…）用等宽 overline 小标签；生成记录列表向 `.entry` 条目范式靠拢。
+- [ ] **3. Profile.vue（361 行）**：个人头部杂志化——衬线大昵称、等宽编号、统计数字 `tabular-nums`、头像加细发线框；3 处 `background: #fff`（227/271/311 行）数据卡 → 纸白 + 发线；2 处 `color: #fff`（233/334 行）→ `--hd-on-primary`；退出按钮保留 danger 语义色（`--hd-danger`，EP 已覆盖）；编辑弹窗样式随全局覆盖，删局部硬编码。
+- [ ] **4. CreateProject.vue（362 行）**：**5 个风格封面硬编码高饱和渐变（131-135 行 `#E3E0D9/#FAE0D3/…`）→ 纸调低饱和渐变**（用 neutral/primary 令牌派生，保持 5 种风格可辨但不刺眼）；选中态 `box-shadow: 0 0 0 2px var(--hd-primary-50)`（305 行）→ 陶土细描边 1px + 浅陶土底，不用阴影；上传拖拽区、表单卡片纸白化去阴影；主按钮统一墨色/陶土规范。
+- [ ] **5. Community.vue（860 行，最大）**：帖子卡片 `background:#fff`（558/786 行）→ 纸白卡 + 细发线；陶土/墨底上的 `color:#fff`（570/666/764 行）→ `--hd-on-primary`；作者名衬线、时间走等宽图注；发帖框/空状态对齐 `.state-box`；点赞/评论图标按钮保持 3px 圆角方形。**注意：该文件含未提交的点赞防连点修复（`_liking` 标志、乐观更新回滚、`@error` 坏图处理），只动模板 class 与 `<style>`，脚本逻辑一行不碰，提交时与重构分离**。
+- [ ] **6. AiChat.vue（605 行，硬编码最多）**：AI 气泡 3 处 `#fff` 底（260/330/365/516 行）→ 纸白卡 + 细发线；用户气泡/发送按钮/重试按钮的 `color:#fff`（361/395/464/494/562 行）→ `--hd-on-primary`；loading spinner `border-top-color:#fff`（576 行）→ `--hd-on-ink`；圆形头像（多处 `border-radius:50%`）改 3px 圆角方形加细发线框（建筑工作室气质，气泡三角可保留或去除）；输入区、图片预览卡、markdown 正文排版对齐杂志正文（小标题衬线、引用加发线）。
+- [ ] **收尾**：全站视图目录 grep 复查无硬编码 hex / 无页面级 box-shadow；TabBar 导航在各页高亮正常；窄屏（<860px）逐页检查。
+
+### 验收标准
+
+1. `frontend/src/views/**/*.vue` 与 `layout/**/*.vue` 中无硬编码颜色 hex、无自定义大圆角、无页面级阴影（50% 圆形元素除外）。
+2. 6 个页面与 Login/Home/TabBar 三个标杆页视觉同源：纸底、发线、衬线标题、等宽标注、陶土克制点睛。
+3. 纯样式/模板 class 变更：所有交互（注册登录、发帖点赞防连点、AI 发送与重试、生成轮询、资料编辑）行为零变化。
+4. 每改完一页在浏览器桌面宽屏 + 窄屏两档实测，不积攒到最后统一验收。
+
+## 手机验证码登录（2026-09-21，✅ 已完成 2026-09-22）
+
+> 需求：A-10（需求文档 §10.5）——手机号 + 短信验证码登录；验证码 Redis 存储（`sms:code:{phone}` TTL 300s、`sms:limit:{phone}` TTL 60s）；手机号未注册自动建档（`username`=手机号、`password`=NULL），签发 JWT。契约：接口文档 §2.6/§2.7。
+> 本期短信通道为 Mock（验证码打印后端日志），`SmsService` 接口预留真实通道替换。
+> 写码方式：**后端由用户亲手实现，助手给思路/关键片段并审查纠错；前端由助手直接实现**。
+
+### 后端（学习模式）
+
+- [x] 1. **schema 变更**：`db/house_design.sql` 建表语句加 `phone VARCHAR(11)` + `UNIQUE KEY uk_phone`，`password` 放宽 NULL；存量库已执行 ALTER
+- [x] 2. **User 实体**加 `phone` 字段
+- [x] 3. **短信通道**：`SmsService` 接口（`send(phone, code)`）+ `MockSmsServiceImpl`（`log.info` 打印验证码）
+- [x] 4. **验证码组件** `common/SmsCodeService`（参照 `LoginRateLimiter` 注入 `StringRedisTemplate`）：
+  - `sendCode(phone)`：频控检查（`sms:limit:` 存在则 429）→ 生成 6 位随机码 → 写 `sms:code:`（TTL 300s）→ 写 `sms:limit:`（TTL 60s）→ 调 `SmsService`
+  - `verify(phone, code)`：`GET` 比对，不一致返回 false（保留 key），一致 `DEL` 后返回 true
+- [x] 5. **请求 DTO**：`SmsCodeRequest {phone}`、`SmsLoginRequest {phone, code}`（`@NotBlank` + 手机号正则）
+- [x] 6. **LoginService.loginByPhone(SmsLoginRequest)**：验码失败抛 400 → 按 phone 查用户 → 不存在则自动建档 → 签发 JWT
+- [x] 7. **LoginController** 加 `POST /sms/code`、`POST /sms/login`
+- [x] 8. **WebConfig** 放行两个新路径
+- [x] 9. **配置项**：`app.sms.code-ttl-seconds=300`、`app.sms.resend-interval-seconds=60`
+- [x] 10. **本地实测**（浏览器 + redis-cli 验证 key/TTL 全部通过）
+
+### 前端（助手直接实现）
+
+- [x] `api/auth.js`：`sendSmsCodeApi`、`smsLoginApi`
+- [x] `stores/user.js`：`loginByPhone(phone, code)` action（成功后同样 fetchMe）
+- [x] `views/Login.vue`：表单顶部「账号登录 / 手机登录」Tab 切换；手机表单 = 手机号输入 + 验证码输入与「获取验证码」按钮（60s 倒计时、倒计时中禁用）；全部使用 `--hd-*` 令牌
+
+### 验收结果（需求文档 §10.5 六条验收标准，全部通过）
+
+- [x] 正常发送/倒计时/60s 频控（后端 429 + 前端禁用）；正确验证码登录（含自动建档）；错误/过期/重放均 400；参数校验拦截；Tab 切换互不影响
+
+### ⚠️ 环境踩坑（重要，多 Redis 实例争抢 localhost:6379）
+
+- **现象**：后端发码返回 200、JVM 内 set/get 自洽，但 `docker exec redis` 容器里查不到验证码 key。
+- **根因**：机器上同时存在**两个 Redis**——Docker 容器 redis（docker-desktop）与 Ubuntu-24.04 里 apt 安装的独立 redis-server；Windows 上 `localhost:6379` 的 IPv4（wslrelay）与 IPv6（com.docker.backend）被分别转发到了这两个实例（对比双栈路径的 `INFO server` run_id 不一致而坐实）。Java/Lettuce 走 IPv4 → Ubuntu 那个 Redis，而排查用的是 Docker 容器，于是"写的地方"和"看的地方"不是同一个库。
+- **修复**：停用并禁用 Ubuntu 内 redis（`sudo systemctl disable --now redis-server`），收敛为 Docker 容器唯一一个；重启后端后双栈 run_id 一致，验证码正确落容器。
+- **教训 / 面试话术**：`localhost` 在 IPv4/IPv6 双栈 + WSL2 端口转发下不保证唯一；同机多实例要靠不同端口或 IP 隔离，排查"写入成功但查不到"时优先核对连接的实际 host/port/database 与服务端 run_id。
+
+### 🔧 后续加固（接真实短信前必修，2026-09-22 评估）
+
+> 当前"双 String key"对单一登录 + Mock 场景合理；以下三点在接入真实短信通道前补齐。
+
+- [ ] **② 验证码校验失败次数上限（防暴力枚举）**
+  - 背景：6 位数字共 100 万种，验证码 5 分钟有效，不限尝试次数理论上可被枚举。
+  - 方案：新增 `sms:try:{phone}`（String 整数）——每次校验失败 `INCR`（首次失败设 TTL 与验证码对齐，300s），失败达 **5 次**直接 `DEL sms:code:{phone}` 作废，强制重新获取；校验成功时一并 `DEL sms:try:`。
+  - 可选演进：把 `code + failCount` 合并为一个 Hash（`HSET/HINCRBY`），但 60s 频控 key 仍独立（Hash 无法对单字段设 TTL）。
+
+- [ ] **③ 写缓存与发短信的顺序 / 原子性**
+  - 现状：`sendCode` 是**先写 Redis（验证码+频控）、后调 `SmsService.send()`**；接真实短信后若发送失败，用户没收到码却已进入 60s 等待。
+  - 方案 A（推荐）：**先调发送、成功后再写两个 key**；
+  - 方案 B：保持先写，但 `send()` 抛异常时回滚 `DEL` 掉 code/limit 两个 key。
+  - 附加：两条 SET 之间进程崩溃会导致频控缺失（低危），可用 Lua 脚本把"写 code + 写 limit"做成原子操作。
+
+- [ ] **④ 同手机号 / 同 IP 每日发送总量上限（防资损）**
+  - 背景：`sms:limit` 只管 60s 间隔，真实短信按条收费，不限总量一天可被刷上千条。
+  - 方案：新增 `sms:daily:{phone}:{yyyyMMdd}`（String 整数，TTL 到当日 24 点）——每次发送前 `INCR`，超过上限（如 10 条/日）拒绝；同一逻辑可按 IP 维度再加 `sms:daily:ip:{ip}:{date}`，对应 A-7 防刷。
+
+> 另：key 建议补"业务场景"段（`sms:code:login:{phone}` / `sms:code:reset:{phone}`），避免以后 A-6 找回密码与登录验证码互相覆盖/越场重放——此项未列入本清单，可视情况提前做。
+
 ## AI 多模态对话（2026-09-18，🚧 开发中）
 
 > 需求：新增「AI 设计助手」对话能力，AI 具备图文理解（用户可发装修图片提问）。
@@ -66,7 +162,7 @@
 背景：对话已切 LangChain4j（`AiChatService` @AiService，智谱 OpenAI 兼容协议）。实测高峰期智谱返回 `429 code=1305「该模型当前访问量过大」`，默认被全局异常处理器兜底成 500。不稳定分四类：**限流 / 超时 / 上游故障 / 网络抖动**，按下面六层防线由易到难处理。
 
 - [x] **第 1 层 超时控制**：`application.yml` 已配 `langchain4j.open-ai.chat-model.timeout: 60s`，防请求无限挂住占 Tomcat 线程
-- [x] **第 2 层 自动重试（框架自带）**：LangChain4j 默认重试 3 次 + 指数退避（堆栈可见 `RetryUtils$RetryPolicy.withRetry`）；注意重试只对瞬时抖动有效，持续限流时重试只增加等待，次数不是越大越好
+- [x] **第 2 层 自动重试（框架自带）**：LangChain4j 1.0.1 字节码核实默认 `maxRetries=2`（首发 + 2 次重试 = 最多 3 次 HTTP 请求），退避公式 `500ms × 1.5^i + 0~20% 抖动`（约 0.5s / 0.75s 两档等待，见 `RetryUtils$RetryPolicy`）；429/5xx/超时/IO 才重试，`NonRetriableException`（400/401/403）直接抛；注意重试只对瞬时抖动有效，持续限流时重试只增加等待，次数不是越大越好
 - [ ] **第 2 层（补）显式配置**：yml 加 `langchain4j.open-ai.chat-model.max-retries: 3`，把隐式默认值写明便于调参
 - [ ] **第 3 层 异常转译（下一步先做这个）**：重试仍失败时，不能一律返回 500
   - 位置：学习期先在 `TestAiController.askAi` try-catch；正式业务改为 `AiChatService` 接口 + `AiChatServiceImpl` 分层（参照 LoginService 模式，@AiService 代理接口内加不了逻辑）
@@ -98,7 +194,20 @@
   - 面试话术：知道什么时候用 Redis（登录限流）与不用（点赞低频数据用 MySQL 原子更新）
   - 后续（不在本期）：注册接口同 IP 限频（S-3 中 A-7 部分），key 用 `register:fail:{ip}`，可升级滑动窗口
   - 后续优化：**两段式 TTL**——当前固定窗口从第 1 次失败起算，若 5 次失败拖得分散（接近 600s），触发锁定时剩余锁定时间可能不足。改进：第 1 次失败 `EXPIRE 600`（计数窗口）；计数达阈值那一刻再 `EXPIRE 600` 一次（锁定窗口），保证锁定恒有完整 10 分钟。再进一步可升级滑动窗口（ZSET）或 Lua 脚本保证原子性
-- [ ] **令牌失效机制**：改密/登出使旧 JWT 失效
+- [ ] **令牌失效机制（A-9 退出登录先行，对应需求 S-4）**：改密/登出使旧 JWT 失效
+  - 契约：接口文档 §2.5——`POST /api/auth/logout`（**需鉴权**，不加入 WebConfig 放行列表）；登出把当前 token 写 Redis 黑名单立即失效，拦截器对所有受保护接口增加黑名单校验
+  - [ ] 后端 `common/TokenBlacklistService.java`（参照 `LoginRateLimiter` 模式注入 `StringRedisTemplate`）：
+    - `blacklist(token)`：key = `jwt:blacklist:` + `SHA-256(token)` 十六进制串（不存原始 token，避免 payload 落 Redis），value 固定 `"1"`，TTL = token 剩余有效期（`exp - now`，秒级，最小兜底 1s），到期自动清理
+    - `isBlacklisted(token)`：`hasKey` 判断；Redis 异常时如何处理需斟酌（建议放行并打 error 日志——fail-open 保证可用性，与"登录限流强依赖"区分，黑名单只影响登出生效时机）
+  - [ ] `JwtUtil` 增加 `getExpiration(token)`（从 Claims 取 `exp`）供计算 TTL；黑名单的 SHA-256 计算放 Service 内
+  - [ ] `LoginController` 新增 `POST /api/auth/logout`：从 `Authorization` 头取 token → `TokenBlacklistService.blacklist(token)` → `Result.success(null)`；无请求体
+  - [ ] `JwtInterceptor.preHandle`：`isValid` 通过后、写 `UserContext` 前加 `isBlacklisted` 判断，命中走现有 `reject(response, "登录已过期，请重新登录")` 返回 401
+  - [ ] 前端 `api/auth.js`：新增 `logoutApi()` → `request.post('/api/auth/logout')`
+  - [ ] 前端 `stores/user.js`：`logout()` 改 `async`——`try { await logoutApi() } catch { /* 吞掉 */ } finally { 清 token/userInfo/removeToken() }`，接口成败不阻塞本地清理
+  - [ ] 前端 `views/Profile.vue`：`onLogout` 改 `async` 并 `await userStore.logout()` 后再提示 + 跳登录页
+  - [ ] 注意 401 拦截器副作用：`request.js` 响应拦截器对 logout 请求返回 401 会弹"登录已过期"并跳登录页，与正常登出殊途同归但可能多一条 toast；如体验不佳，实现时给该请求加静默标记（如 `config.skipAuthRedirect`）
+  - [ ] 验证（需本地 Redis）：① 登录拿 token → 调 logout 返回 200；② 旧 token 再调 `/api/auth/me` 返回 401；③ `redis-cli` 确认 `jwt:blacklist:*` key 存在且 TTL ≈ 7 天；④ 重新登录的新 token 访问正常；⑤ Redis 中 key 到期自动消失；⑥ 无 token/伪造 token 调 logout 返回 401 且前端仍退回登录页
+  - 不做：不引入 refresh token 体系；A-5 修改密码实现时直接复用 `TokenBlacklistService`（改密成功后拉黑当前 token）
 
 ## 体验与扩展
 
