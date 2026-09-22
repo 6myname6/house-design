@@ -59,8 +59,17 @@
 
         <p v-if="p.content" class="post-content">{{ p.content }}</p>
 
-        <div v-if="p.images && p.images.length" class="post-images" :class="{ single: p.images.length === 1 }">
-          <img v-for="(img, i) in p.images" :key="img + i" :src="img" class="post-img" alt="" loading="lazy" />
+        <div v-if="visibleImages(p.images).length" class="post-images" :class="{ single: visibleImages(p.images).length === 1 }">
+          <img
+            v-for="(img, i) in p.images"
+            :key="img + i"
+            :src="img"
+            v-show="!brokenImages.has(img)"
+            class="post-img"
+            alt=""
+            loading="lazy"
+            @error="brokenImages.add(img)"
+          />
         </div>
 
         <footer class="post-actions">
@@ -95,8 +104,8 @@
                   <time class="comment-time">{{ formatTime(c.createdAt) }}</time>
                 </div>
                 <div class="comment-text">{{ c.content }}</div>
-                <div v-if="c.images && c.images.length" class="comment-images">
-                  <img v-for="(img, i) in c.images" :key="img + i" :src="img" class="comment-img" alt="" loading="lazy" />
+                <div v-if="visibleImages(c.images).length" class="comment-images">
+                  <img v-for="(img, i) in c.images" :key="img + i" :src="img" v-show="!brokenImages.has(img)" class="comment-img" alt="" loading="lazy" @error="brokenImages.add(img)" />
                 </div>
                 <div class="comment-ops">
                   <button type="button" class="op-btn" :class="{ liked: c.likedByMe }" @click="onCommentLike(c)">
@@ -127,8 +136,8 @@
                   <time class="comment-time">{{ formatTime(r.createdAt) }}</time>
                 </div>
                 <div class="comment-text">{{ r.content }}</div>
-                <div v-if="r.images && r.images.length" class="comment-images">
-                  <img v-for="(img, i) in r.images" :key="img + i" :src="img" class="comment-img" alt="" loading="lazy" />
+                <div v-if="visibleImages(r.images).length" class="comment-images">
+                  <img v-for="(img, i) in r.images" :key="img + i" :src="img" v-show="!brokenImages.has(img)" class="comment-img" alt="" loading="lazy" @error="brokenImages.add(img)" />
                 </div>
                 <div class="comment-ops">
                   <button type="button" class="op-btn" :class="{ liked: r.likedByMe }" @click="onCommentLike(r)">
@@ -246,6 +255,12 @@ const userStore = useUserStore()
 
 const posts = ref([])
 const loading = ref(false)
+// 加载失败的图片 URL 集合（裂图自动隐藏；刷新列表时清空，给 URL 恢复的机会）
+const brokenImages = ref(new Set())
+function visibleImages(images) {
+  if (!images || !images.length) return []
+  return images.filter((u) => u && !brokenImages.value.has(u))
+}
 const loadError = ref(false)
 const pageNum = ref(1)
 const pageSize = 20
@@ -266,6 +281,7 @@ onMounted(async () => {
 async function load() {
   loading.value = true
   loadError.value = false
+  brokenImages.value = new Set() // 重新加载时重置裂图标记
   try {
     await fetchPage(1, false)
   } catch {
@@ -299,17 +315,29 @@ function formatTime(t) {
 
 /* ---- 点赞 ---- */
 async function onLike(p) {
-  const liked = p.likedByMe
-  // 乐观更新，失败回滚
-  p.likedByMe = !liked
-  p.likeCount = (p.likeCount || 0) + (liked ? -1 : 1)
+  // 请求进行中忽略连点，防止乐观更新连续翻转造成计数错乱
+  if (p._liking) return
+  const prevLiked = !!p.likedByMe
+  const prevCount = Number.isInteger(p.likeCount) ? p.likeCount : 0
+  const nextLiked = !prevLiked
+  p._liking = true
+  // 乐观更新
+  p.likedByMe = nextLiked
+  p.likeCount = Math.max(0, prevCount + (nextLiked ? 1 : -1))
   try {
     const res = await toggleLike(p.id)
-    p.likeCount = res.likeCount
-    p.likedByMe = res.liked
+    // 服务端返回为唯一真相；但字段异常（缺字段/类型错）时不盲目覆盖，保留乐观结果
+    if (res && typeof res.liked === 'boolean') {
+      p.likedByMe = res.liked
+      p.likeCount = Number.isInteger(res.likeCount)
+        ? res.likeCount
+        : Math.max(0, prevCount + (res.liked ? 1 : -1))
+    }
   } catch {
-    p.likedByMe = liked
-    p.likeCount = (p.likeCount || 0) + (liked ? 1 : -1)
+    p.likedByMe = prevLiked
+    p.likeCount = prevCount
+  } finally {
+    p._liking = false
   }
 }
 
@@ -415,16 +443,27 @@ async function submitComment(p) {
 }
 
 async function onCommentLike(c) {
-  const liked = c.likedByMe
-  c.likedByMe = !liked
-  c.likeCount = (c.likeCount || 0) + (liked ? -1 : 1)
+  // 同帖子点赞：防连点 + 乐观更新 + 服务端字段校验 + 失败回滚
+  if (c._liking) return
+  const prevLiked = !!c.likedByMe
+  const prevCount = Number.isInteger(c.likeCount) ? c.likeCount : 0
+  const nextLiked = !prevLiked
+  c._liking = true
+  c.likedByMe = nextLiked
+  c.likeCount = Math.max(0, prevCount + (nextLiked ? 1 : -1))
   try {
     const res = await toggleCommentLike(c.id)
-    c.likeCount = res.likeCount
-    c.likedByMe = res.liked
+    if (res && typeof res.liked === 'boolean') {
+      c.likedByMe = res.liked
+      c.likeCount = Number.isInteger(res.likeCount)
+        ? res.likeCount
+        : Math.max(0, prevCount + (res.liked ? 1 : -1))
+    }
   } catch {
-    c.likedByMe = liked
-    c.likeCount = (c.likeCount || 0) + (liked ? 1 : -1)
+    c.likedByMe = prevLiked
+    c.likeCount = prevCount
+  } finally {
+    c._liking = false
   }
 }
 

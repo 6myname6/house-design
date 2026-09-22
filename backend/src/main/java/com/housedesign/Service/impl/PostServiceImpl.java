@@ -1,6 +1,8 @@
 package com.housedesign.Service.impl;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -45,8 +47,8 @@ public class PostServiceImpl implements PostService {
 
     // 类内公共工具方法
 
-    // 帖子实体->帖子响应体
-    private PostResponse toResponse(Post post, User user) {
+    // 帖子实体->帖子响应体（likedByMe 由调用方按当前用户批量查询后传入）
+    private PostResponse toResponse(Post post, User user, boolean likedByMe) {
         PostResponse postResponse = new PostResponse();
         postResponse.setAuthorAvatar(user.getAvatar());
         postResponse.setAuthorName(user.getNickname());
@@ -57,7 +59,7 @@ public class PostServiceImpl implements PostService {
         postResponse.setId(post.getId());
         postResponse.setImages(post.getImages());
         postResponse.setLikeCount(post.getLikeCount());
-        postResponse.setLikedByMe(false);
+        postResponse.setLikedByMe(likedByMe);
         postResponse.setUserId(user.getId());
         return postResponse;
     }
@@ -122,8 +124,8 @@ public class PostServiceImpl implements PostService {
         postMapper.insert(post);
         log.info("发帖成功：postId={}, userId={}", post.getId(), userId);
 
-        // 包装响应数据
-        return toResponse(post, user);
+        // 包装响应数据（刚发布的新帖，自己尚未点赞）
+        return toResponse(post, user, false);
     }
 
     // 帖子列表
@@ -136,11 +138,20 @@ public class PostServiceImpl implements PostService {
                 new LambdaQueryWrapper<Post>()
                         .eq(mine, Post::getUserId, userId)
                         .orderByDesc(Post::getCreatedAt));
-        // 2. 当前页帖子转响应体（补作者信息，N+1 朴素版）
-        List<PostResponse> records = page.getRecords().stream()
-                .map(post -> toResponse(post, userMapper.selectById(post.getUserId())))
+        // 2. 批量查当前用户对本页帖子的点赞记录（一次 IN 查询，避免逐帖 N+1）
+        List<Post> pagePosts = page.getRecords();
+        Set<Long> likedPostIds = pagePosts.isEmpty() ? Set.of()
+                : postLikeMapper.selectList(new LambdaQueryWrapper<PostLike>()
+                        .eq(PostLike::getUserId, userId)
+                        .in(PostLike::getPostId,
+                                pagePosts.stream().map(Post::getId).toList()))
+                        .stream().map(PostLike::getPostId).collect(Collectors.toSet());
+        // 3. 当前页帖子转响应体（补作者信息 + 真实点赞态）
+        List<PostResponse> records = pagePosts.stream()
+                .map(post -> toResponse(post, userMapper.selectById(post.getUserId()),
+                        likedPostIds.contains(post.getId())))
                 .toList();
-        // 3. 返回总数 + 当前页数据
+        // 4. 返回总数 + 当前页数据
         log.info("帖子列表查询完成：userId={}, total={}, pageCount={}", userId, page.getTotal(), records.size());
         return new PageResult<>(page.getTotal(), records);
     }
@@ -274,11 +285,19 @@ public class PostServiceImpl implements PostService {
             like.setPostId(postId);
             like.setUserId(userId);
             postLikeMapper.insert(like);
+            // 同步帖子冗余计数（原子 +1，与 comment_count 同模式；UNIQUE 约束兜底防并发重复）
+            postMapper.update(null, new LambdaUpdateWrapper<Post>()
+                    .eq(Post::getId, postId)
+                    .setSql("like_count = like_count + 1"));
             log.info("帖子点赞成功：postId={}, userId={}", postId, userId);
             return new LikeResult(countPostLikes(postId), true);
         } else {
             // 点赞了，取消点赞
             postLikeMapper.deleteById(isLike.getId());
+            // 原子 -1，GREATEST 兜底防止异常数据减成负数
+            postMapper.update(null, new LambdaUpdateWrapper<Post>()
+                    .eq(Post::getId, postId)
+                    .setSql("like_count = GREATEST(like_count - 1, 0)"));
             log.info("取消帖子点赞：postId={}, userId={}", postId, userId);
             return new LikeResult(countPostLikes(postId), false);
         }
