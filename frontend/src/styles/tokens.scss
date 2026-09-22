@@ -93,4 +93,7 @@
     --hd-ink: var(--hd-neutral-800);
     --hd-paper: var(--hd-neutral-50);
     --hd-side-nav-width: 208px;
+    /* 实底上的反白文字：陶土实底（按钮/气泡）用纸白，墨色舞台用暖纸白 */
+    --hd-on-primary: #fffdf9;
+    --hd-on-ink: #f3ede2;
 }
