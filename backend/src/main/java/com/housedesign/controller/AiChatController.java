@@ -27,7 +27,8 @@ public class AiChatController {
     // AI对话
 
     @PostMapping("/chat")
-    public Result<String> aiChat(@RequestBody AiChatRequest aiChatRequest) {
+    // 纯文本返回 AiChatMemoryResponse，图文/纯图返回 String，故用通配符兼容两种形态
+    public Result<?> aiChat(@RequestBody AiChatRequest aiChatRequest) {
 
         if ((aiChatRequest.getQuestion() == null || aiChatRequest.getQuestion().isBlank())
                 && (aiChatRequest.getImages() == null || aiChatRequest.getImages().isEmpty())) {
@@ -38,7 +39,9 @@ public class AiChatController {
         // 只传文本
         if (aiChatRequest.getImages() == null || aiChatRequest.getImages().isEmpty()) {
             log.info("用户提问：{}", aiChatRequest.getQuestion());
-            return Result.success(aiChatService.chat(aiChatRequest.getQuestion()));
+            // 纯文本：透传会话 id，返回 {conversationId, answer}
+            return Result.success(aiChatService.chat(
+                    aiChatRequest.getConversationId(), aiChatRequest.getQuestion()));
         }
 
         // 获取ImageContents传参

@@ -111,7 +111,17 @@
 - [x] **版本踩坑（重要）**：langchain4j 1.0.1（starter 1.0.1-beta6 实际依赖的核心包）的声明式 `@AiService` **不支持 `List<ImageContent>` 方法参数**（`DefaultAiServices.validateParameters` 要求 ≥2 参时每个参数都必须有 @V/@UserMessage/@UserName/@MemoryId，且消息组装只取文本模板）。最终架构：**纯文本走 `AiChatAssistant`（@AiService）；图文/纯图在 Service 层直接注入 `ChatModel`，手工 `UserMessage.from(List<Content>{TextContent + ImageContent...})` 调用**（注意 `UserMessage.from(String, List)` 的 String 是昵称不是正文）
 - [x] **Bean 冲突踩坑**：Starter 已按 yml 自动装配 `openAiChatModel`，不要再手写 `AiConfig` 里的 `@Bean ChatModel`（两个同类型 bean 导致启动报 IllegalConfigurationException），已删除 AiConfig
 - [ ] **纯文本拒答不稳定（实测发现）**：glm-4.6v-flash 对"非装修问题礼貌拒绝"指令遵循弱（图片场景能拒，纯文本问冒泡排序仍答代码）；待强化系统提示词（few-shot 示例 / 更强约束措辞）后回归
-- [ ] **多轮记忆**：`ChatMemoryProvider`（会话 id → `MessageWindowChatMemory`，起步内存 Map，重启丢失可接受）+ `@AiService` 方法加 `@MemoryId String conversationId`；DTO 加 `conversationId`（首轮为空则生成）。注意：图文链路用的是裸 `ChatModel`，记忆需要手工把历史消息拼进消息列表，或等升级支持多模态参数的 langchain4j 版本后回归 @AiService
+- [x] **多轮记忆（AI-3，✅ 2026-09-23 完成，本期仅纯文本链路，学习模式一步步教）**：契约见接口文档 §11.3
+  - [x] 1. `AiChatRequest` 加 `conversationId` 字段
+  - [x] 2. 新增响应 DTO `AiChatMemoryResponse {conversationId, answer}`（dto/response）
+  - [x] 3. 新增配置类 `AiConfig`：`ChatMemoryProvider` Bean（`dev.langchain4j.memory.chat` 包），内部 `ConcurrentHashMap` + `computeIfAbsent`，窗口 `maxMessages(10)`
+  - [x] 4. `AiChatAssistant` 改为记忆版 `chat(@MemoryId String, @UserMessage String)`；`@AiService(chatMemoryProvider="chatMemoryProvider")`，`@SystemMessage` 提至接口级
+  - [x] 5. `AiChatService` 文本方法签名改为带 conversationId、返回 `AiChatMemoryResponse`
+  - [x] 6. `AiChatServiceImpl`：conversationId 空则生成 UUID → 调记忆版 chat → 组装响应（保留 503 异常转译）
+  - [x] 7. `AiChatController` 纯文本分支透传 conversationId，方法返回 `Result<?>` 兼容两种响应形态
+  - [x] 8. 前端（助手实现）：`api/ai.js` + `AiChat.vue` 保存/回传 conversationId，新会话按钮重置
+  - [x] 9. 浏览器实测通过：首轮返 id、追问"那要多少钱"正确承接 30平原木风上下文、新会话隔离不串
+  - 后续（不在本期）：图文链路手工记忆；存储升级 Redis（langchain4j-redis）；窗口淘汰（>10条）可选补测
 - [ ] **图片 URL/base64 混合模式（OSS 已就绪，前置条件满足，对应 F-3 已完成）**：`AiChatController.toImageContent` 按前缀分流——`http(s)://` 开头走 `ImageContent.from(URI.create(url))`（智谱服务器自行下载），`data:` 开头走现有 DataURL 解析；接口契约 `images: string[]` 与前端零改动。约束：必须公网可达（公共读或有效期 ≥5min 的签名 URL；用公网 endpoint 而非 `-internal`；不能开 Referer 防盗链，智谱拉取不带 Referer）。适用：已存档图片（帖子图/设计图）走 URL 省 33% base64 膨胀，用户本地新图仍走 base64
 - [ ] **前端聊天页**：`api/ai.js` + `views/AiChat.vue`（气泡 UI、图片选择/预览、`FileReader` 转 DataURL、loading/503 重试）+ 路由 + TabBar 入口
 

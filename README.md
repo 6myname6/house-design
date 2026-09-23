@@ -35,8 +35,8 @@
 **AI 多模态对话（2026-09-18，🚧 开发中）**
 
 - [x] 后端模型接入层与 Service 层（LangChain4j `@AiService` + 智谱 glm-4.6v-flash 视觉模型，纯文本/图文/纯图三分支 + 503 异常转译）
-- [ ] `POST /api/ai/chat` 正式接口（JSON：文本 + DataURL 图片列表）
-- [ ] 多轮上下文记忆（ChatMemory + 会话 id，起步内存存储）
+- [x] `POST /api/ai/chat` 正式接口（JSON：文本 + DataURL 图片列表）
+- [x] 多轮上下文记忆（✅ 2026-09-23 完成，纯文本链路：ChatMemoryProvider + @MemoryId，窗口 10 条，内存 Map；契约见接口文档 §11.3）
 - [ ] 前端聊天页（图片选择/预览、气泡 UI、loading/重试）
 
 **2026-09-14（前端体验）**

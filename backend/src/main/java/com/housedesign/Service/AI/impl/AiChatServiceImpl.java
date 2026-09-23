@@ -11,12 +11,14 @@ import dev.langchain4j.data.message.Content;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
 import com.housedesign.Service.AI.AiChatAssistant;
 import com.housedesign.Service.AI.AiChatService;
 import com.housedesign.common.BusinessException;
+import com.housedesign.dto.response.AiChatMemoryResponse;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,9 +32,14 @@ public class AiChatServiceImpl implements AiChatService {
 
     // 纯文本对话
     @Override
-    public String chat(String question) {
+    public AiChatMemoryResponse chat(String conversationId, String question) {
+
+        if (conversationId == null || conversationId.isBlank()) {
+            conversationId = UUID.randomUUID().toString();
+        }
         try {
-            return aiChatAssistant.chat(question);
+            String answer = aiChatAssistant.chat(conversationId, question);
+            return new AiChatMemoryResponse(conversationId, answer);
         } catch (RateLimitException | TimeoutException | InternalServerException | UnresolvedModelServerException e) {
             throw new BusinessException(503, "对不起，当前AI服务繁忙，请稍后再试~");
         }

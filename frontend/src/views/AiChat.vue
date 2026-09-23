@@ -6,6 +6,7 @@
         <h2 class="header-title">AI 设计助手</h2>
         <p class="header-sub">资深装修设计师在线，风格识别 · 配色材质 · 预算建议，支持发图提问</p>
       </div>
+      <button class="new-chat-btn" type="button" @click="newConversation">＋ 新会话</button>
     </header>
 
     <!-- 消息区 -->
@@ -152,6 +153,7 @@ let seq = 0
 const nextId = () => `m${++seq}-${Date.now()}`
 
 const messages = ref([])        // { id, role: 'user'|'assistant', content, images: [dataUrl], pending, error }
+const conversationId = ref('')  // 当前会话标识：首轮为空，首轮后用后端返回值；开新会话时清空
 const draft = ref('')
 const pendingImages = ref([])   // { dataUrl }
 const sending = ref(false)
@@ -233,8 +235,19 @@ async function retry(index) {
 
 async function requestAi(question, images, aiMsg) {
   try {
-    const answer = await chatWithAi({ question, images })
-    aiMsg.content = answer
+    // 纯文本：携带当前会话 id（首轮为空，后端新建），响应为 {conversationId, answer}
+    // 图文/纯图：不传 id（本期不走记忆），响应直接是回答字符串
+    const isText = !images || images.length === 0
+    const data = await chatWithAi(
+      isText ? { question, images, conversationId: conversationId.value }
+             : { question, images }
+    )
+    if (isText) {
+      conversationId.value = data.conversationId   // 保存后端会话 id，供后续轮次回传
+      aiMsg.content = data.answer
+    } else {
+      aiMsg.content = data
+    }
   } catch (err) {
     aiMsg.error = err?.response?.data?.message || 'AI 暂时开小差了，请稍后重试'
   } finally {
@@ -242,6 +255,14 @@ async function requestAi(question, images, aiMsg) {
     sending.value = false
     scrollToBottom()
   }
+}
+
+// 开新会话：清空消息与会话标识，后续从首轮重新建立记忆
+function newConversation() {
+  messages.value = []
+  conversationId.value = ''
+  draft.value = ''
+  pendingImages.value = []
 }
 </script>
 
@@ -256,9 +277,28 @@ async function requestAi(question, images, aiMsg) {
 /* ---------- 顶部 ---------- */
 .chat-header {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hd-space-2);
   padding: var(--hd-space-2) var(--hd-space-3);
-  background: #fff;
+  background: var(--el-fill-color-blank);
   border-bottom: 1px solid var(--hd-neutral-200);
+}
+.new-chat-btn {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  font-size: var(--hd-text-caption);
+  letter-spacing: 0.08em;
+  color: var(--hd-neutral-700);
+  background: transparent;
+  border: 1px solid var(--hd-neutral-300);
+  border-radius: var(--hd-radius-base);
+  cursor: pointer;
+}
+.new-chat-btn:hover {
+  color: var(--hd-neutral-800);
+  border-color: var(--hd-neutral-500);
 }
 .header-title {
   margin: 0;
