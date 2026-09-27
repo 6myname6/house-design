@@ -38,10 +38,9 @@
                   maxlength="32"
                   show-password
                   autocomplete="current-password"
-                  @keyup.enter="onSubmit"
                 />
               </el-form-item>
-              <el-button type="primary" native-type="submit" class="submit" :loading="loading" @click="onSubmit">
+              <el-button type="primary" native-type="submit" class="submit" :loading="loading">
                 进 入
               </el-button>
             </el-form>
@@ -59,14 +58,13 @@
                     placeholder="6 位验证码"
                     maxlength="6"
                     inputmode="numeric"
-                    @keyup.enter="onPhoneSubmit"
                   />
-                  <el-button class="code-btn" :disabled="countdown > 0" @click="onSendCode">
+                  <el-button class="code-btn" :disabled="countdown > 0 || codeSending" :loading="codeSending" @click="onSendCode">
                     {{ countdown > 0 ? `${countdown}s 后重发` : '获取验证码' }}
                   </el-button>
                 </div>
               </el-form-item>
-              <el-button type="primary" native-type="submit" class="submit" :loading="phoneLoading" @click="onPhoneSubmit">
+              <el-button type="primary" native-type="submit" class="submit" :loading="phoneLoading">
                 进 入
               </el-button>
             </el-form>
@@ -104,16 +102,16 @@ const rules = {
 }
 
 async function onSubmit() {
-  try {
-    await formRef.value.validate()
-  } catch {
-    return
-  }
+  // 重入守卫 + 同步置位：提交统一走表单 submit 事件，双击/回车都不会重复发请求
+  if (loading.value) return
   loading.value = true
   try {
+    await formRef.value.validate()
     await userStore.login(form.username, form.password)
     ElMessage.success('登录成功')
     router.push(route.query.redirect || '/projects')
+  } catch {
+    // 校验失败或请求失败：请求拦截器已统一弹错误提示
   } finally {
     loading.value = false
   }
@@ -138,38 +136,46 @@ const phoneRules = {
 
 // 60 秒发送倒计时
 const countdown = ref(0)
+const codeSending = ref(false) // 验证码接口进行中：防止响应返回前连点发多条短信
 let countdownTimer = null
 
 async function onSendCode() {
+  if (codeSending.value || countdown.value > 0) return
   // 先只校验手机号字段
   try {
     await phoneFormRef.value.validateField('phone')
   } catch {
     return
   }
-  await sendSmsCodeApi({ phone: phoneForm.phone })
-  ElMessage.success('验证码已发送，请查收（Mock 环境请看后端日志）')
-  countdown.value = 60
-  countdownTimer = setInterval(() => {
-    countdown.value -= 1
-    if (countdown.value <= 0) {
-      clearInterval(countdownTimer)
-      countdownTimer = null
-    }
-  }, 1000)
+  codeSending.value = true
+  try {
+    await sendSmsCodeApi({ phone: phoneForm.phone })
+    ElMessage.success('验证码已发送，请查收（Mock 环境请看后端日志）')
+    countdown.value = 60
+    countdownTimer = setInterval(() => {
+      countdown.value -= 1
+      if (countdown.value <= 0) {
+        clearInterval(countdownTimer)
+        countdownTimer = null
+      }
+    }, 1000)
+  } catch {
+    // 发送失败：拦截器已统一提示，不启动倒计时，允许重试
+  } finally {
+    codeSending.value = false
+  }
 }
 
 async function onPhoneSubmit() {
-  try {
-    await phoneFormRef.value.validate()
-  } catch {
-    return
-  }
+  if (phoneLoading.value) return
   phoneLoading.value = true
   try {
+    await phoneFormRef.value.validate()
     await userStore.loginByPhone(phoneForm.phone, phoneForm.code)
     ElMessage.success('登录成功')
     router.push(route.query.redirect || '/projects')
+  } catch {
+    // 校验失败或请求失败：请求拦截器已统一弹错误提示
   } finally {
     phoneLoading.value = false
   }

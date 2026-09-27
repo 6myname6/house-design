@@ -38,7 +38,7 @@ public class LoginServiceImpl implements LoginService {
                 new LambdaQueryWrapper<User>().eq(User::getUsername, registerRequest.getUsername()));
         if (count > 0) {
             // 有重复用户名则返回空
-            return null;
+            throw new BusinessException(400, "抱歉，这个用户名被别人使用了，换一个试试吧~");
         }
         // 没有重复用户名则成功注册：new一个新用户并插入数据库
         User user = new User();
@@ -51,7 +51,7 @@ public class LoginServiceImpl implements LoginService {
 
         } catch (DuplicateKeyException e) {
             log.warn("用户名 {} 并发注册冲突", registerRequest.getUsername());
-            return null;
+            throw new BusinessException(400, "用户名并发冲突！");
         }
         return user.getId();
     }

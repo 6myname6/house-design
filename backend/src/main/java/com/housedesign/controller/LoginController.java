@@ -1,6 +1,7 @@
 package com.housedesign.controller;
 
 import com.housedesign.Service.LoginService;
+import com.housedesign.annotation.NoRepeatSubmit;
 import com.housedesign.dto.request.LoginRequest;
 import com.housedesign.dto.request.RegisterRequest;
 import com.housedesign.dto.request.SmsCodeRequest;
@@ -42,17 +43,13 @@ public class LoginController {
         return Result.error(400, "用户名或密码错误");
     }
 
+    @NoRepeatSubmit
     @PostMapping("/register")
     // 1. 获取前端传入参数：用户名，密码
     public Result<Long> register(@RequestBody @Valid RegisterRequest registerRequest) {
         log.info("注册：username={}", registerRequest.getUsername());
         // 2.调用UserService.register方法注册用户
-        Long userId = userService.register(registerRequest);
-        // 3.根据注册结果返回响应
-        if (userId != null) {
-            return Result.success(userId);
-        }
-        return Result.error(400, "抱歉，这个用户名被别人使用了，换一个试试吧~");
+        return Result.success(userService.register(registerRequest));
     }
 
     // 发送验证码

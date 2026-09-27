@@ -48,7 +48,7 @@
               autocomplete="new-password"
             />
           </el-form-item>
-          <el-button type="primary" native-type="submit" class="submit" :loading="loading" @click="onSubmit">
+          <el-button type="primary" native-type="submit" class="submit" :loading="loading">
             开 始
           </el-button>
         </el-form>
@@ -95,16 +95,16 @@ const rules = {
 }
 
 async function onSubmit() {
-  try {
-    await formRef.value.validate()
-  } catch {
-    return
-  }
+  // 重入守卫 + 同步置位：必须在 await 之前锁住，否则双击的第二次点击仍会穿过
+  if (loading.value) return
   loading.value = true
   try {
+    await formRef.value.validate()
     await userStore.register(form.username, form.password)
     ElMessage.success('注册成功，已自动登录')
     router.push('/projects')
+  } catch {
+    // 校验失败或请求失败：请求拦截器已统一弹错误提示，这里不重复处理
   } finally {
     loading.value = false
   }
