@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { getToken, removeToken } from '../utils/storage'
+import { useAiChatStore } from '../stores/aiChat'
 import router from '../router'
 
 // 后端统一响应：{ code, message, data }，成功 code = 200
@@ -33,6 +34,7 @@ request.interceptors.response.use(
     // HTTP 401：token 失效 → 清空并跳登录页
     if (error.response && error.response.status === 401) {
       removeToken()
+      useAiChatStore().reset() // 清空内存中的会话，避免登录页/换账号期间残留
       ElMessage.error('登录已过期，请重新登录')
       router.push('/login')
     } else if (error.response && error.response.status === 404) {

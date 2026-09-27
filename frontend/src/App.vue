@@ -2,7 +2,12 @@
   <div v-if="showTab" class="app-shell">
     <TabBar />
     <main class="app-main">
-      <router-view />
+      <!-- 仅缓存 AI 对话页：切换侧边栏时休眠组件，保留消息与滚动位置 -->
+      <router-view v-slot="{ Component }">
+        <keep-alive :include="['AiChat']">
+          <component :is="Component" />
+        </keep-alive>
+      </router-view>
     </main>
   </div>
   <router-view v-else />

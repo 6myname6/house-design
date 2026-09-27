@@ -6,7 +6,42 @@
         <h2 class="header-title">AI 设计助手</h2>
         <p class="header-sub">资深装修设计师在线，风格识别 · 配色材质 · 预算建议，支持发图提问</p>
       </div>
-      <button class="new-chat-btn" type="button" @click="newConversation">＋ 新会话</button>
+      <div class="header-actions">
+        <!-- 历史对话下拉 -->
+        <div ref="historyWrapRef" class="history-wrap">
+          <button
+            class="history-btn"
+            type="button"
+            :class="{ 'is-open': historyOpen }"
+            @click="toggleHistory"
+          >
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12a9 9 0 1 0 3-6.7"/>
+              <path d="M3 4v5h5"/>
+              <path d="M12 8v4l3 2"/>
+            </svg>
+            历史对话
+          </button>
+            <Transition name="history-drop">
+              <div v-if="historyOpen" class="history-panel">
+                <p class="history-panel-title">历史会话</p>
+                <div v-if="historyList.length === 0" class="history-empty">暂无历史对话</div>
+                <button
+                  v-for="s in historyList"
+                  :key="s.id"
+                  type="button"
+                  class="history-item"
+                  :class="{ active: s.id === aiStore.currentSessionId }"
+                  @click="openSession(s.id)"
+                >
+                  <span class="history-item-title">{{ s.title || '图片对话' }}</span>
+                  <span class="history-item-meta">{{ s.messages.length }} 条 · {{ formatTime(s.updatedAt) }}</span>
+                </button>
+              </div>
+            </Transition>
+        </div>
+        <button class="new-chat-btn" type="button" @click="newConversation">＋ 新会话</button>
+      </div>
     </header>
 
     <!-- 消息区 -->
@@ -138,10 +173,19 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { chatWithAi } from '../api/ai'
 import { renderMarkdown } from '../utils/markdown'
+import { useAiChatStore } from '../stores/aiChat'
+import { getUserIdFromToken } from '../utils/storage'
+
+// keep-alive 按组件名缓存本页，切换侧边栏时休眠而非卸载
+defineOptions({ name: 'AiChat' })
+
+const aiStore = useAiChatStore()
+// 兜底：进入对话页时确保加载的是当前登录用户的会话（刷新/SPA 内跳转场景）
+aiStore.bindUser(getUserIdFromToken())
 
 const suggestions = [
   '现代简约风格怎么搭配主色调？',
@@ -152,8 +196,16 @@ const suggestions = [
 let seq = 0
 const nextId = () => `m${++seq}-${Date.now()}`
 
-const messages = ref([])        // { id, role: 'user'|'assistant', content, images: [dataUrl], pending, error }
-const conversationId = ref('')  // 当前会话标识：首轮为空，首轮后用后端返回值；开新会话时清空
+// 消息与后端会话标识提升至 Pinia（并持久化到 localStorage），切换页面/刷新都不丢
+const messages = computed(() => aiStore.currentSession?.messages ?? [])
+const conversationId = computed(() => aiStore.currentSession?.serverConversationId ?? '')
+// 会话数据任意变更（内容、错误态、当前会话指针切换）都防抖落盘
+watch(
+  [() => aiStore.sessions, () => aiStore.currentSessionId],
+  () => aiStore.scheduleSave(),
+  { deep: true }
+)
+
 const draft = ref('')
 const pendingImages = ref([])   // { dataUrl }
 const sending = ref(false)
@@ -211,7 +263,9 @@ async function onSend() {
 
   const userMsg = { id: nextId(), role: 'user', content: question, images, pending: false }
   const aiMsg = { id: nextId(), role: 'assistant', content: '', images: [], pending: true, error: '' }
+  aiStore.ensureSession()
   messages.value.push(userMsg, aiMsg)
+  aiStore.touch(question) // 首条用户消息作为会话标题，并刷新 updatedAt
   draft.value = ''
   pendingImages.value = []
   sending.value = true
@@ -243,7 +297,8 @@ async function requestAi(question, images, aiMsg) {
              : { question, images }
     )
     if (isText) {
-      conversationId.value = data.conversationId   // 保存后端会话 id，供后续轮次回传
+      // 保存后端会话 id 到当前会话，供后续轮次回传（watch 自动持久化）
+      if (aiStore.currentSession) aiStore.currentSession.serverConversationId = data.conversationId
       aiMsg.content = data.answer
     } else {
       aiMsg.content = data
@@ -257,13 +312,66 @@ async function requestAi(question, images, aiMsg) {
   }
 }
 
-// 开新会话：清空消息与会话标识，后续从首轮重新建立记忆
+// 开新会话：旧会话归档保留（将来可在历史列表查看），切换到空白新会话
 function newConversation() {
-  messages.value = []
-  conversationId.value = ''
+  aiStore.newSession()
   draft.value = ''
   pendingImages.value = []
 }
+
+// ---------- 历史会话下拉 ----------
+const historyOpen = ref(false)
+const historyWrapRef = ref(null)
+// 只有产生过消息的会话才进历史，按最后更新时间倒序
+const historyList = computed(() =>
+  [...aiStore.sessions]
+    .filter((s) => s.messages.length > 0)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+)
+
+function toggleHistory() {
+  historyOpen.value = !historyOpen.value
+}
+
+// 点击历史项：切换会话，messages 是指向 store 的 computed 会自动更新
+async function openSession(id) {
+  historyOpen.value = false
+  if (id === aiStore.currentSessionId) return
+  aiStore.switchSession(id)
+  await nextTick()
+  scrollToBottom()
+}
+
+// 相对时间：今天显示时分，昨天显式标注，更早显示月-日
+function formatTime(ts) {
+  const d = new Date(ts)
+  const now = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  if (d.toDateString() === now.toDateString()) return `今天 ${hm}`
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  if (d.toDateString() === yesterday.toDateString()) return `昨天 ${hm}`
+  return `${d.getMonth() + 1}月${d.getDate()}日`
+}
+
+// 点击面板外部或按 Esc 关闭
+function onDocClick(e) {
+  if (historyOpen.value && historyWrapRef.value && !historyWrapRef.value.contains(e.target)) {
+    historyOpen.value = false
+  }
+}
+function onKeydown(e) {
+  if (e.key === 'Escape') historyOpen.value = false
+}
+onMounted(() => {
+  document.addEventListener('click', onDocClick)
+  document.addEventListener('keydown', onKeydown)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', onDocClick)
+  document.removeEventListener('keydown', onKeydown)
+})
 </script>
 
 <style scoped>
@@ -299,6 +407,111 @@ function newConversation() {
 .new-chat-btn:hover {
   color: var(--hd-neutral-800);
   border-color: var(--hd-neutral-500);
+}
+
+/* ---------- 顶部按钮组 + 历史下拉 ---------- */
+.header-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--hd-space-1);
+}
+.history-wrap {
+  position: relative;
+}
+.history-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: var(--hd-text-caption);
+  letter-spacing: 0.08em;
+  color: var(--hd-neutral-700);
+  background: transparent;
+  border: 1px solid var(--hd-neutral-300);
+  border-radius: var(--hd-radius-base);
+  cursor: pointer;
+}
+.history-btn:hover,
+.history-btn.is-open {
+  color: var(--hd-primary-700);
+  border-color: var(--hd-primary-400);
+}
+.history-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 20;
+  width: 320px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid var(--hd-neutral-200);
+  border-radius: var(--hd-radius-lg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+}
+.history-panel-title {
+  margin: 0;
+  padding: 8px 10px 6px;
+  font-size: var(--hd-text-overline);
+  letter-spacing: 0.12em;
+  color: var(--hd-neutral-400);
+}
+.history-empty {
+  padding: 18px 10px 22px;
+  text-align: center;
+  font-size: var(--hd-text-caption);
+  color: var(--hd-neutral-400);
+}
+.history-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  padding: 9px 10px;
+  background: transparent;
+  border: none;
+  border-radius: var(--hd-radius-base);
+  cursor: pointer;
+  text-align: left;
+}
+.history-item:hover {
+  background: var(--hd-neutral-50);
+}
+.history-item.active {
+  background: var(--hd-primary-50);
+}
+.history-item-title {
+  width: 100%;
+  font-size: var(--hd-text-body);
+  color: var(--hd-neutral-800);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.history-item.active .history-item-title {
+  color: var(--hd-primary-700);
+  font-weight: var(--hd-font-weight-medium);
+}
+.history-item-meta {
+  font-size: var(--hd-text-overline);
+  letter-spacing: 0.04em;
+  color: var(--hd-neutral-400);
+}
+
+/* 下拉进场动效 */
+.history-drop-enter-active {
+  transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+}
+.history-drop-leave-active {
+  transition: opacity 0.12s ease-in, transform 0.12s ease-in;
+}
+.history-drop-enter-from,
+.history-drop-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 .header-title {
   margin: 0;

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { loginApi, registerApi, getMe, updateMe, smsLoginApi } from '../api/auth'
-import { getToken, setToken, removeToken } from '../utils/storage'
+import { getToken, setToken, removeToken, getUserIdFromToken } from '../utils/storage'
+import { useAiChatStore } from './aiChat'
 
 export const useUserStore = defineStore('user', {
   state: () => ({
@@ -16,6 +17,8 @@ export const useUserStore = defineStore('user', {
       const token = await loginApi({ username, password })
       this.token = token
       setToken(token)
+      // 切换 AI 会话库到新登录用户，防止看到上一个账号的本地会话
+      useAiChatStore().bindUser(getUserIdFromToken())
       // 登录成功后拉一次用户信息回显
       await this.fetchMe()
     },
@@ -24,6 +27,7 @@ export const useUserStore = defineStore('user', {
       const token = await smsLoginApi({ phone, code })
       this.token = token
       setToken(token)
+      useAiChatStore().bindUser(getUserIdFromToken())
       // 登录成功后拉一次用户信息回显
       await this.fetchMe()
     },
@@ -40,11 +44,12 @@ export const useUserStore = defineStore('user', {
     async updateProfile(data) {
       this.userInfo = await updateMe(data)
     },
-    // 登出：清 token + 用户信息
+    // 登出：清 token + 用户信息 + 内存中的 AI 会话（各人数据仍保留在各自 localStorage 键中）
     logout() {
       this.token = ''
       this.userInfo = null
       removeToken()
+      useAiChatStore().reset()
     }
   }
 })
