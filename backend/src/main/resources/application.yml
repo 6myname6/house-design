@@ -58,6 +58,7 @@ app:
     chat-model: "glm-4.7-flash"
     chat-timeout-seconds: 60
     vsion-model: glm-4.6v-flash
+    memory-ttl-seconds: 86400
   
   sms:
     code-ttl-seconds: 300

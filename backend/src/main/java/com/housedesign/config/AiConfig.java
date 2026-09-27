@@ -1,26 +1,33 @@
 package com.housedesign.config;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import com.housedesign.common.RedisChatMemoryStore;
 
 import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.memory.chat.ChatMemoryProvider;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
+import lombok.RequiredArgsConstructor;
 
+@RequiredArgsConstructor
 @Configuration
 public class AiConfig {
-    // 将持有所有的会话记忆：conversationId -> 该会话的记忆
-    private final Map<String, ChatMemory> memories = new ConcurrentHashMap<>();
+    // redis会话记忆存储
+    private final RedisChatMemoryStore redisChatMemoryStore;
 
     @Bean
-    ChatMemoryProvider chatMemoryProvider() {
-        return memoryId -> memories.computeIfAbsent((String) memoryId,
-                id -> MessageWindowChatMemory.builder()
-                        .id(id)
+    public ChatMemoryProvider chatMemoryProvider() {
+        ChatMemoryProvider chatMemoryProvider = new ChatMemoryProvider() {
+            @Override
+            public ChatMemory get(Object memoryId) {
+                return MessageWindowChatMemory.builder()
+                        .id(memoryId)
                         .maxMessages(10)
-                        .build());
+                        .chatMemoryStore(redisChatMemoryStore)
+                        .build();
+            }
+        };
+        return chatMemoryProvider;
     }
 }

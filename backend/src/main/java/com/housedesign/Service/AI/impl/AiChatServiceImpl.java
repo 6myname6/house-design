@@ -41,6 +41,7 @@ public class AiChatServiceImpl implements AiChatService {
             String answer = aiChatAssistant.chat(conversationId, question);
             return new AiChatMemoryResponse(conversationId, answer);
         } catch (RateLimitException | TimeoutException | InternalServerException | UnresolvedModelServerException e) {
+            log.warn("AI 文本对话调用失败，conversationId={}", conversationId, e);
             throw new BusinessException(503, "对不起，当前AI服务繁忙，请稍后再试~");
         }
     }
@@ -57,6 +58,7 @@ public class AiChatServiceImpl implements AiChatService {
             ChatResponse response = chatModel.chat(systemMessage, userMessage);
             return response.aiMessage().text();
         } catch (RateLimitException | TimeoutException | InternalServerException | UnresolvedModelServerException e) {
+            log.warn("AI 图文对话调用失败", e);
             throw new BusinessException(503, "对不起，当前AI服务繁忙，请稍后再试~");
         }
     }
