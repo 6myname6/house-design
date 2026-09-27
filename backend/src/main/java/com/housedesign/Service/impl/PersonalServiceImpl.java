@@ -26,6 +26,7 @@ public class PersonalServiceImpl implements PersonalService {
         PersonalDataResponse personalData = new PersonalDataResponse();
         personalData.setId(user.getId());
         personalData.setUsername(user.getUsername());
+        personalData.setNickname(user.getNickname());
         personalData.setAvatar(user.getAvatar());
         return personalData;
     }
