@@ -34,6 +34,13 @@ const routes = [
     component: () => import('../views/ProjectDetail.vue') // 二级页：显示顶部导航
   },
   {
+    // 照片漫游独立全屏页：无侧边栏，由 Viewer3D 自行渲染返回入口
+    path: '/viewer/:generationId',
+    name: 'Viewer3D',
+    component: () => import('../views/Viewer3D.vue'),
+    meta: { hideTab: true }
+  },
+  {
     path: '/community',
     name: 'Community',
     component: () => import('../views/Community.vue')

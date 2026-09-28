@@ -189,9 +189,30 @@
 - [ ] **第 5 层 多模型 fallback（上线前评估，勿提前过度设计）**：主模型持续失败自动切备用（智谱付费模型 / 另一 OpenAI 兼容厂商）；LangChain4j 无一行配置开关，自写包装类 try A catch(限流/超时) → B
 - [ ] **第 6 层 结果缓存（性价比高，复用现有 Redis）**：装修风格知识类问题重复率高，相同问题缓存回答 TTL 1h，命中即返回不调模型，既提速又从根上减少限流；key 如 `ai:chat:{md5(systemPrompt+question)}`
 
-## 3D 查看（前端，规划中）
+## 照片漫游重构：AI 读户型 + 多房间写实生图 + Viewer3D（2026-09-27 启动，🚧 文档已先行）
 
-- [ ] **前端 `Viewer3D.vue`**：按 `sceneConfig.type` 渲染 `photo-tour`（照片漫游）。~~`procedural-apartment`（Three.js 重建，原依赖 mock）~~——mock 方案已废弃，不再提供
+> 需求：V-1 照片漫游落地 + V-4 自定义户型 A/B 层。决策（已确认）：宽幅照片漫游（非真 360）；AI 视觉识别户型图房间/拓扑/面积 + 查看页户型小地图；生图模型 `cogview-3-flash`（免费，模型名配置化可切 cogview-4）。
+> 契约：接口文档 §4.1（两阶段流程）/ §7.1（sceneConfig photo-tour v2）/ §9（409 防并发、识别失败）。数据库无 DDL 变更（scene_config LONGTEXT 承载）。
+> 存储：房间效果图落 `storage/panoramas/`；户型图读本地文件转 base64 喂视觉模型（localhost URL 智谱拉不到）。
+
+### 后端（小步切片，每步可独立验证）
+
+- [x] 1. **配置修正**：`application.yml` — `app.ai.image-model` 改为 `${AI_IMAGE_MODEL:cogview-3-flash}`（原误配视觉模型名）；新增 `app.ai.room-image-size: 1440x720`、`app.ai.max-rooms: 6`；视觉模型复用 `langchain4j.open-ai.chat-model`（glm-4.6v-flash）
+- [x] 2. **AIimageService 参数化**：`generateImageUrl(prompt, size)` 重载，size 从配置注入（单参签名默认走配置宽幅）；Maven compile 通过
+- [x] 3. **户型识别 DTO**：`dto/ai/FloorPlanResult`、`RoomPlan`（id/name/approxArea/features/connects/doorSides/bbox）、`RoomBBox`（x/y/w/h）
+- [x] 4. **FloorPlanAnalysisService + ZhipuFloorPlanAnalysisServiceImpl**：注入 LangChain4j `ChatModel`（SystemMessage 固定 JSON 契约 + UserMessage(TextContent+ImageContent)）；local 存储读盘 base64（从 designImageUrl 的 /files/ 前缀解析相对路径，normalize+startsWith 防穿越），公网 URL 走 ImageContent.from(URI)；剥离 ```json 围栏后 Jackson 反序列化；校验规范化（id 蛇形唯一/connects 去噪+双向闭合/doorSides 对齐/bbox 裁剪/房间数截断/entryRoomId 兜底）
+- [x] 5. **sceneConfig v2 组装 DTO**：`dto/scene/PhotoTourScene`、`RoomScene`、`Hotspot`；doorSide → x 规则化（left .24 / center .50 / right .76，y=.66，同方位多门错位错开）
+- [x] 6. **GenerationServiceImpl.runGeneration 重构**：识别重试 1 次 → FAILED 友好提示；逐房间串行生图+落 `panoramas/`，单间重试 1 次仍败整套 FAILED（注明房间名）；组装 PhotoTourScene 写 sceneConfig，入口房间图写 panorama/preview；**顺带修复旧 bug：成功路径漏 updateById 导致 SUCCESS 不落库**
+- [x] 7. **防并发（G-4 后端兜底）**：同项目存在 PENDING/PROCESSING 任务 → BusinessException(409,「该项目正在生成中，请等待当前任务完成」)
+- [x] 8. **实测（2026-09-27 全通过）**：标准 CAD 户型图——识别 6 房间 JSON 正确（面积/bbox/双向连接）、每房间 1440×720 出图落盘、sceneConfig v2 闭合；**防并发实测首版 selectCount 有 check-then-act 竞态（并行双发双双放行，任务 17/18），已改 Redis SETNX（`generation:active:{projectId}`，终态 finally 释放 + 30min TTL 兜底）；复测并行双发严格 200+409、进行中再发 409、任务 19 FAILED/任务 20 SUCCESS 后占位均自动释放**；识别偶发失败（视觉模型高峰期超时，同图任务 19 败/20 成）由重试 1 次 + 友好提示兜底
+
+### 前端（助手直接实现）
+
+- [x] 9. **路由**：`/viewer/:generationId` → `views/Viewer3D.vue`，`meta.hideTab` 全屏沉浸
+- [x] 10. **Viewer3D.vue**（已实测任务 16）：getGeneration 拉任务（支持 PENDING/PROCESSING 轮询）→ 解析 sceneConfig（v2 漫游 / v1 单房间无热点降级）；全屏 cover + **Ken Burns 32s 缓慢来回扫视 + 鼠标视差 ±14px**（静态照片产生空间动感）；呼吸圆点热点（pulse 扩散环 + 房间名，点击 500ms 交叉淡入，切房交替扫视方向）；底部 6 房间缩略图条；顶部房间编号/名称/估算面积；左下户型小地图（原图 + bbox 叠块当前陶土高亮 + 房间图例可点）；首次引导提示 6s 自动消失；键盘 ← → 切房、Esc 返回；加载/失败态；prefers-reduced-motion 降级；杂志风令牌
+- [x] 11. **ProjectDetail.vue 入口改造**：「查看效果图 →」按钮 → `router.push('/viewer/'+id)`；删除 el-dialog 全景弹窗与 panoramaVisible；生成历史 SUCCESS 项点击也进 Viewer（进行中/失败项仍侧栏切换）
+- [x] 12a. **浏览器实测**：首屏 6 缩略图/3 热点/小地图叠块正确；客厅→餐厅→厨房、缩略图直跳主卧四处联动（画面/编号/小地图/缩略图）正常；返回跳 `/projects/12`；入口独立页无 dialog
+- [x] 12b. **409 复测 + 知识库**：重启后并行双发严格 200+409、进行中再发 409、任务终态（19 FAILED / 20 SUCCESS）占位均自动释放；已沉淀 `docs/知识库/04-多房间照片漫游.md` + README 索引
 
 ## 安全加固
 

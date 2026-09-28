@@ -66,22 +66,13 @@
           <div v-else-if="lastGen?.status === 'SUCCESS'" class="gen-state">
             <img :src="resultImg" class="gen-img" alt="装修效果图" />
             <div class="gen-actions">
-              <a
-                v-if="lastGen.modelUrl"
-                :href="lastGen.modelUrl"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="el-button el-button--primary el-button--small"
-              >
-                查看 3D 模型
-              </a>
               <el-button
                 v-if="lastGen.panoramaUrl"
+                type="primary"
                 size="small"
-                plain
-                @click="panoramaVisible = true"
+                @click="openViewer(lastGen.id)"
               >
-                查看全景效果
+                查看效果图 →
               </el-button>
             </div>
           </div>
@@ -114,11 +105,6 @@
         </div>
       </aside>
     </div>
-
-    <!-- 全景效果大图 -->
-    <el-dialog v-model="panoramaVisible" title="全景效果" width="min(720px, 92%)">
-      <img v-if="lastGen?.panoramaUrl" :src="lastGen.panoramaUrl" class="panorama-img" alt="全景效果图" />
-    </el-dialog>
   </div>
 </template>
 
@@ -139,7 +125,6 @@ const deleting = ref(false)
 const generating = ref(false) // 发起请求中
 const lastGen = ref(null) // 最近一次生成任务（当前查看对象）
 const history = ref([])
-const panoramaVisible = ref(false)
 let timer = null
 
 const isGenerating = computed(
@@ -169,6 +154,11 @@ async function loadHistory() {
   // 默认展示最新一条
   if (history.value.length) {
     lastGen.value = history.value[0]
+    // 从其他页面返回时，若最新任务仍在生成中（之前的轮询随组件卸载已停止），自动续上轮询
+    const latest = history.value[0]
+    if (latest.status === 'PENDING' || latest.status === 'PROCESSING') {
+      poll(latest.id).then(loadHistory).catch(() => {})
+    }
   }
 }
 
@@ -213,7 +203,17 @@ function clearPolling() {
   }
 }
 
+// 进入独立全屏照片漫游页
+function openViewer(generationId) {
+  router.push(`/viewer/${generationId}`)
+}
+
+// 历史项：成功的直接进漫游页；进行中/失败的在侧栏切换查看状态
 function viewGen(g) {
+  if (g.status === 'SUCCESS' && g.panoramaUrl) {
+    openViewer(g.id)
+    return
+  }
   lastGen.value = g
 }
 
@@ -413,11 +413,6 @@ function formatTime(t) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.panorama-img {
-  width: 100%;
-  border-radius: var(--hd-radius-base);
-}
-
 @media (max-width: 900px) {
   .layout {
     grid-template-columns: 1fr;

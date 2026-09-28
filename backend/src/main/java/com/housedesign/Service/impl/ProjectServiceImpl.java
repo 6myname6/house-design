@@ -9,7 +9,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.housedesign.Service.FileStorageService;
 import com.housedesign.Service.ProjectService;
 import com.housedesign.common.BusinessException;
-import com.housedesign.common.Result;
 import com.housedesign.common.UserContext;
 import com.housedesign.dto.response.ProjectResponse;
 import com.housedesign.entity.DesignProject;
@@ -25,6 +24,8 @@ import lombok.extern.slf4j.Slf4j;
 public class ProjectServiceImpl implements ProjectService {
     private final ProjectMapper projectMapper;
     private final FileStorageService fileStorageService;
+
+    // 创建项目
 
     @Override
     public ProjectResponse createProject(String name, String description,
@@ -68,6 +69,7 @@ public class ProjectServiceImpl implements ProjectService {
         return projectResponse;
     }
 
+    // 我的项目
     @Override
     public List<ProjectResponse> listMyProjects() {
         Long userId = UserContext.getUserId();
@@ -97,6 +99,7 @@ public class ProjectServiceImpl implements ProjectService {
         return resp;
     }
 
+    // 项目详情
     @Override
     public ProjectResponse getProjectDetail(Long id) {
         Long userId = UserContext.getUserId();
@@ -108,6 +111,7 @@ public class ProjectServiceImpl implements ProjectService {
         return toResponse(project);
     }
 
+    // 删除项目
     @Override
     public void delProject(Long id) {
         Long userId = UserContext.getUserId();

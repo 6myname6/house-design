@@ -52,7 +52,13 @@ app:
   ai:
     api-key: ${ZHIPU_API_KEY}
     base-url: "https://open.bigmodel.cn/api/paas/v4"
-    image-model: "glm-4.6v-flash"
+    # 文生图模型：images/generations 仅接受 cogview/glm-image 系列名（勿填视觉对话模型）；
+    # 默认免费 cogview-3-flash，演示需要更高写实度时用环境变量切 cogview-4-250304
+    image-model: ${AI_IMAGE_MODEL:cogview-3-flash}
+    # 房间效果图尺寸：1440x720 = 2:1 宽幅，照片漫游全屏展示用
+    room-image-size: 1440x720
+    # 单套户型最多识别并出图的房间数（控制总耗时与风控风险）
+    max-rooms: 6
     timeout-seconds: 300
     # 对话补全配置（风格预优化用，免费 flash 文本模型）
     chat-model: "glm-4.7-flash"

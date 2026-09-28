@@ -17,21 +17,29 @@ public class AIimageService {
     private final WebClient webClient;
     private final String apiKey;
     private final String imageModel;
+    private final String defaultImageSize;
     private final int timeoutSeconds;
 
     public AIimageService(WebClient.Builder builder,
             @Value("${app.ai.base-url}") String baseUrl,
             @Value("${app.ai.api-key}") String apiKey,
             @Value("${app.ai.image-model}") String imageModel,
+            @Value("${app.ai.room-image-size:1440x720}") String defaultImageSize,
             @Value("${app.ai.timeout-seconds}") int timeoutSeconds) {
         webClient = builder.baseUrl(baseUrl).build();
         this.apiKey = apiKey;
         this.imageModel = imageModel;
+        this.defaultImageSize = defaultImageSize;
         this.timeoutSeconds = timeoutSeconds;
     }
 
-    // 文生图:发起任务并阻塞轮询,返回临时图片url
+    // 文生图（使用配置的默认尺寸，照片漫游为 1440x720 宽幅）:发起任务并阻塞轮询,返回临时图片url
     public String generateImageUrl(String prompt) {
+        return generateImageUrl(prompt, defaultImageSize);
+    }
+
+    // 文生图（显式指定尺寸，如 1440x720 / 1024x1024）:发起任务并阻塞轮询,返回临时图片url
+    public String generateImageUrl(String prompt, String size) {
         // 1.发起生成任务
         JsonNode submit;
         try {
@@ -39,7 +47,7 @@ public class AIimageService {
                     .uri("/images/generations")
                     .header("Authorization", "Bearer " + apiKey)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(java.util.Map.of("model", imageModel, "prompt", prompt, "size", "1024x1024"))
+                    .bodyValue(java.util.Map.of("model", imageModel, "prompt", prompt, "size", size))
                     .retrieve()
                     .bodyToMono(JsonNode.class)
                     .block(Duration.ofSeconds(timeoutSeconds));
