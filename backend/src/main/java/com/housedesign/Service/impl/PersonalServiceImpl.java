@@ -3,6 +3,7 @@ package com.housedesign.Service.impl;
 import org.springframework.stereotype.Service;
 
 import com.housedesign.Service.PersonalService;
+import com.housedesign.common.BusinessException;
 import com.housedesign.common.UserContext;
 import com.housedesign.dto.request.UpdateRequest;
 import com.housedesign.dto.response.PersonalDataResponse;
@@ -37,8 +38,19 @@ public class PersonalServiceImpl implements PersonalService {
         Long userId = UserContext.getUserId();
         User user = userMapper.selectById(userId);
         // 2.修改用户信息
-        user.setAvatar(updateRequest.getAvatar());
-        user.setNickname(updateRequest.getNickname());
+        if ((updateRequest.getAvatar() == null
+                || updateRequest.getAvatar().isBlank())
+                && (updateRequest.getNickname() == null
+                        || updateRequest.getNickname().isBlank())) {
+            throw new BusinessException(400, "更改不能为空");
+        }
+        if (!(updateRequest.getAvatar() == null || updateRequest.getAvatar().isBlank())) {
+            user.setAvatar(updateRequest.getAvatar());
+        }
+        if (!(updateRequest.getNickname() == null || updateRequest.getNickname().isBlank())) {
+            user.setNickname(updateRequest.getNickname());
+        }
+
         // 3.更新数据库信息
         userMapper.updateById(user);
         // 4.PersonalData回显
