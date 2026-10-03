@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.housedesign.Service.PostService;
+import com.housedesign.common.BusinessException;
 import com.housedesign.common.Result;
 import com.housedesign.dto.request.CommentRequest;
 import com.housedesign.dto.request.PostRequest;
@@ -14,6 +15,7 @@ import com.housedesign.dto.response.LikeResult;
 import com.housedesign.dto.response.PageResult;
 import com.housedesign.dto.response.PostResponse;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -35,12 +37,12 @@ public class PostController {
 
     // 发表帖子
     @PostMapping()
-    public Result<PostResponse> postApost(@RequestBody PostRequest postRequest) {
+    public Result<PostResponse> postApost(@RequestBody @Valid PostRequest postRequest) {
         // 防止内容图片都空
         boolean hasContent = postRequest.getContent() != null && !postRequest.getContent().isBlank();
         boolean hasImages = postRequest.getImages() != null && !postRequest.getImages().isEmpty();
         if (!hasContent && !hasImages) {
-            return Result.error("请确认您要发表的内容！");
+            throw new BusinessException(400, "请确认您要发表的内容！");
         }
         log.info("开始发表帖子：{}", postRequest);
         return Result.success(postService.postApost(postRequest));
@@ -78,9 +80,10 @@ public class PostController {
     // 评论帖子
     @PostMapping("/{postId}/comments")
     public Result<CommentResponse> commentApost(@PathVariable(value = "postId") Long postId,
-            @RequestBody CommentRequest commentRequest) {
-        if (commentRequest.getContent() == null && commentRequest.getImages() == null) {
-            return Result.error("请发表您的评论内容！");
+            @RequestBody @Valid CommentRequest commentRequest) {
+        if ((commentRequest.getContent() == null || commentRequest.getContent().isBlank())
+                && (commentRequest.getImages() == null || commentRequest.getImages().isEmpty())) {
+            throw new BusinessException(400, "请发表您的评论内容！");
         }
         return Result.success(postService.commentApost(postId, commentRequest));
     }

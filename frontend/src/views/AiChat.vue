@@ -111,7 +111,7 @@
     <!-- 待发送图片预览条 -->
     <div v-if="pendingImages.length" class="pending-bar">
       <div v-for="(img, i) in pendingImages" :key="i" class="pending-thumb">
-        <img :src="img.dataUrl" alt="待发送图片" />
+        <img :src="img.previewUrl" alt="待发送图片" />
         <button type="button" class="thumb-remove" title="移除" @click="removeImage(i)">×</button>
       </div>
     </div>
@@ -154,11 +154,12 @@
           :disabled="!canSend"
           @click="onSend"
         >
-          <span v-if="!sending">发送</span>
+          <span v-if="uploading">上传中…</span>
+          <span v-else-if="!sending">发送</span>
           <span v-else class="send-loading" aria-hidden="true"></span>
         </button>
       </div>
-      <p class="input-hint">Enter 发送，Shift+Enter 换行；图片将随消息直接提交</p>
+      <p class="input-hint">Enter 发送，Shift+Enter 换行；图片将先上传再随消息发送</p>
     </footer>
 
     <!-- 大图预览 -->
@@ -176,6 +177,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { chatWithAi } from '../api/ai'
+import { uploadFile } from '../api/file'
 import { renderMarkdown } from '../utils/markdown'
 import { useAiChatStore } from '../stores/aiChat'
 import { getUserIdFromToken } from '../utils/storage'
@@ -207,8 +209,12 @@ watch(
 )
 
 const draft = ref('')
-const pendingImages = ref([])   // { dataUrl }
+const pendingImages = ref([])   // { file: File, previewUrl: blobURL }
 const sending = ref(false)
+const uploading = ref(false)    // 图片上传到文件服务阶段
+const MAX_IMAGES = 4
+const MAX_IMAGE_SIZE = 8 * 1024 * 1024
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 const scrollRef = ref(null)
 const fileInputRef = ref(null)
 const previewList = ref([])
@@ -237,41 +243,72 @@ function sendText(text) {
   onSend()
 }
 
-// 选图 -> FileReader 转 DataURL（不经服务器中转，直接随 JSON 提交）
+// 释放待发图片的本地预览 URL，防止 blob 引用泄漏
+function disposePending(list) {
+  list.forEach((x) => x.previewUrl && URL.revokeObjectURL(x.previewUrl))
+}
+
+// 选图 -> 只生成本地 blob 预览；真正的上传推迟到点击发送时
 function onPickFiles(e) {
   const files = Array.from(e.target.files || [])
   files.forEach((file) => {
-    if (file.size > 8 * 1024 * 1024) {
+    if (pendingImages.value.length >= MAX_IMAGES) {
+      ElMessage.warning(`最多上传 ${MAX_IMAGES} 张图片`)
+      return
+    }
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      ElMessage.warning(`「${file.name}」仅支持 jpg/png/gif/webp 格式`)
+      return
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
       ElMessage.warning(`「${file.name}」超过 8MB，请压缩后再发`)
       return
     }
-    const reader = new FileReader()
-    reader.onload = () => pendingImages.value.push({ dataUrl: reader.result })
-    reader.readAsDataURL(file)
+    pendingImages.value.push({ file, previewUrl: URL.createObjectURL(file) })
   })
   e.target.value = ''
 }
 
 function removeImage(i) {
-  pendingImages.value.splice(i, 1)
+  const [removed] = pendingImages.value.splice(i, 1)
+  if (removed) URL.revokeObjectURL(removed.previewUrl)
 }
 
 async function onSend() {
   if (!canSend.value) return
   const question = draft.value.trim()
-  const images = pendingImages.value.map((x) => x.dataUrl)
+  const pending = pendingImages.value
 
-  const userMsg = { id: nextId(), role: 'user', content: question, images, pending: false }
+  // 1.先把图片上传到文件服务，拿到可访问 URL；失败则保留草稿与待发图片，不产生消息
+  let imageUrls = []
+  if (pending.length) {
+    sending.value = true
+    uploading.value = true
+    try {
+      imageUrls = await Promise.all(pending.map((x) => uploadFile(x.file)))
+    } catch {
+      // request 拦截器已弹错误提示，这里只复位状态；草稿与待发图片保留以便重试
+      sending.value = false
+      uploading.value = false
+      return
+    } finally {
+      uploading.value = false
+    }
+  }
+
+  // 2.用 URL 组装消息并请求 AI（请求体仅几百字节，不再携带 base64）
+  const userMsg = { id: nextId(), role: 'user', content: question, images: imageUrls, pending: false }
   const aiMsg = { id: nextId(), role: 'assistant', content: '', images: [], pending: true, error: '' }
   aiStore.ensureSession()
   messages.value.push(userMsg, aiMsg)
   aiStore.touch(question) // 首条用户消息作为会话标题，并刷新 updatedAt
   draft.value = ''
+  disposePending(pending)
   pendingImages.value = []
   sending.value = true
   scrollToBottom()
 
-  await requestAi(question, images, aiMsg)
+  await requestAi(question, imageUrls, aiMsg)
 }
 
 // 失败重试：保留原问题与图片，只重新请求并更新同一条 AI 消息
@@ -316,6 +353,7 @@ async function requestAi(question, images, aiMsg) {
 function newConversation() {
   aiStore.newSession()
   draft.value = ''
+  disposePending(pendingImages.value)
   pendingImages.value = []
 }
 
@@ -371,6 +409,8 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', onDocClick)
   document.removeEventListener('keydown', onKeydown)
+  // 组件销毁时兜底释放未发送的本地预览 URL（keep-alive 休眠不触发，待发图片保留符合预期）
+  disposePending(pendingImages.value)
 })
 </script>
 

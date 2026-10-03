@@ -57,7 +57,7 @@ function toSnapshot(state) {
   }
 }
 
-// 写 localStorage；图片为 base64 dataURL 体积大，超配额时逐级降级：
+// 写 localStorage；图片存的是服务端 URL（体积小），超配额时仍逐级降级兜底：
 // 1) 剥离全部图片只留文字 → 2) 仅保留最近一个会话的文字
 function writeStorage(userId, state) {
   const write = (snapshot) => localStorage.setItem(storageKeyFor(userId), JSON.stringify(snapshot))

@@ -18,12 +18,14 @@ import lombok.extern.slf4j.Slf4j;
 public class SmsCodeService {
     private static final String CODE_KEY_PREFIX = "sms:code:login:";
     private static final String LIMIT_KEY_PREFIX = "sms:limit:reset:";
+
     @Value("${app.sms.code-ttl-seconds:300}")
     private long codeTtlSeconds;
     @Value("${app.sms.resend-interval-seconds:60}")
     private long resendIntervalSeconds;
     private final StringRedisTemplate stringRedisTemplate;
     private final SmsService smsService;
+    private final LoginRateLimiter loginRateLimiter;
 
     public void sendCode(String phone) {
         // 1.拼频控key
@@ -37,6 +39,8 @@ public class SmsCodeService {
         String code = RandomUtil.randomNumbers(6);
         // 写验证码
         stringRedisTemplate.opsForValue().set(codeKey, code, codeTtlSeconds, TimeUnit.SECONDS);
+        // 清除次数
+        loginRateLimiter.smsClearOnSuccess(phone);
         // 写频控标记
         stringRedisTemplate.opsForValue().set(limitKey, "1", resendIntervalSeconds, TimeUnit.SECONDS);
         // 调用smsService
@@ -45,15 +49,18 @@ public class SmsCodeService {
 
     // 校验验证码,正确则删除，并返回true，错误则/过期返回false（保留key）
     public boolean verify(String phone, String inputCode) {
-        // 拼验证码
+        loginRateLimiter.smsCheckLocked(phone);
+        // 拼key
         String codeKey = CODE_KEY_PREFIX + phone;
         // 从redis取验证码
         String savedCode = stringRedisTemplate.opsForValue().get(codeKey);
         if (savedCode == null || !savedCode.equals(inputCode)) {
             // savedCode==null 为过期；不相等为错误
+            loginRateLimiter.smsRecordFailure(phone);
             return false;
         }
         stringRedisTemplate.delete(codeKey);
+        loginRateLimiter.smsClearOnSuccess(phone);
         return true;
     }
 }

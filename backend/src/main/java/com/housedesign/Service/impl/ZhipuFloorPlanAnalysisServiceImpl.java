@@ -70,7 +70,7 @@ public class ZhipuFloorPlanAnalysisServiceImpl implements FloorPlanAnalysisServi
         // 1.组装多模态消息（系统契约 + 一句任务说明 + 户型图）
         SystemMessage systemMessage = SystemMessage.from(buildSystemPrompt());
         List<Content> contents = List.of(
-                TextContent.from("请识别这套户型图的房间结构，严格按约定只输出 JSON。"),
+                TextContent.from("请识别这张图片，若这张图片是一套户型图，则识别这套户型图的房间结构，否则说明这张图片不是户型图，无法识别。严格按约定只输出 JSON。"),
                 buildImageContent(imageUrl));
 
         // 2.调视觉模型

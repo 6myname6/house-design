@@ -46,6 +46,7 @@ app:
       access-key-secret: ${OSS_ACCESS_KEY_SECRET:}
   # JWT 配置
   jwt:
+    # 开发期默认值仅用于本地；生产部署必须用 JWT_SECRET 环境变量覆盖（上线前整改项，见 docs/bug优化/代码审查修复计划.md）
     secret: ${JWT_SECRET:dev-only-secret-change-me-please-set-env}
     expiration-ms: 604800000  # 7 天
   # AI 文生图配置（直连智谱 CogView，Key 从环境变量注入；未配时生成任务 FAILED）
@@ -69,6 +70,7 @@ app:
   sms:
     code-ttl-seconds: 300
     resend-interval-seconds: 60
+    max-verify-fail-count: 5  #验证码输错次数
 
   login-limit:
     max-fail-count: 5 #连续失败次数
