@@ -2,6 +2,7 @@ package com.housedesign.controller;
 
 import com.housedesign.Service.LoginService;
 import com.housedesign.annotation.NoRepeatSubmit;
+import com.housedesign.common.TokenBlackListService;
 import com.housedesign.dto.request.LoginRequest;
 import com.housedesign.dto.request.RegisterRequest;
 import com.housedesign.dto.request.SmsCodeRequest;
@@ -12,6 +13,7 @@ import jakarta.validation.Valid;
 
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -26,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 public class LoginController {
+    private final TokenBlackListService tokenBlackListService;
     private final SmsCodeService smsCodeService;
     private final LoginService userService;
 
@@ -61,9 +64,17 @@ public class LoginController {
 
     // 验证码登录或注册
     @PostMapping("/sms/login")
-    public Result<String> postMethodName(@RequestBody @Valid SmsLoginRequest smsLoginRequest) {
+    public Result<String> smsCodeLoginOrRegister(@RequestBody @Valid SmsLoginRequest smsLoginRequest) {
         LoginInfoResponse infoResponse = userService.loginByPhone(smsLoginRequest);
         return Result.success(infoResponse.getToken());
+    }
+
+    // 登出接口
+    @PostMapping("/logout")
+    public Result<String> logout(@RequestHeader("Authorization") String authHeader) {
+        String token = authHeader.substring(7);
+        tokenBlackListService.blacklist(token);
+        return Result.success("成功退出");
     }
 
 }

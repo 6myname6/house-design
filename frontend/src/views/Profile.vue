@@ -187,8 +187,8 @@ async function onSave() {
 }
 
 /* ---- 退出登录 ---- */
-function onLogout() {
-  userStore.logout()
+async function onLogout() {
+  await userStore.logout()
   ElMessage.success('已退出登录')
   router.push('/login')
 }

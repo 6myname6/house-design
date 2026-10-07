@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { loginApi, registerApi, getMe, updateMe, smsLoginApi } from '../api/auth'
+import { loginApi, registerApi, getMe, updateMe, smsLoginApi, logoutApi } from '../api/auth'
 import { getToken, setToken, removeToken, getUserIdFromToken } from '../utils/storage'
 import { useAiChatStore } from './aiChat'
 
@@ -44,8 +44,13 @@ export const useUserStore = defineStore('user', {
     async updateProfile(data) {
       this.userInfo = await updateMe(data)
     },
-    // 登出：清 token + 用户信息 + 内存中的 AI 会话（各人数据仍保留在各自 localStorage 键中）
-    logout() {
+    // 登出：先请求后端把 token 拉黑（失败也吞掉），无论成败都清本地状态，保证退出闭环
+    async logout() {
+      try {
+        await logoutApi()
+      } catch (e) {
+        // 接口失败不阻塞本地清理（如 token 已过期，本地同样要退出）
+      }
       this.token = ''
       this.userInfo = null
       removeToken()

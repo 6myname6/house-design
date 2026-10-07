@@ -1,6 +1,7 @@
 package com.housedesign.interceptor;
 
 import com.housedesign.common.JwtUtil;
+import com.housedesign.common.TokenBlackListService;
 import com.housedesign.common.UserContext;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,6 +21,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 public class JwtInterceptor implements HandlerInterceptor {
 
     private final JwtUtil jwtUtil;
+    private final TokenBlackListService tokenBlackListService;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
@@ -39,6 +41,10 @@ public class JwtInterceptor implements HandlerInterceptor {
             return reject(response, "登录已过期，请重新登录");
         }
 
+        // 写入身份前查黑名单
+        if (tokenBlackListService.isBlacklisted(token)) {
+            return reject(response, "token非法！");
+        }
         // 身份放入上下文，后续 Service 通过 UserContext.getUserId() 取用
         UserContext.setUserId(jwtUtil.getUserId(token));
         return true;

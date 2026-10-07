@@ -20,6 +20,11 @@ export function smsLoginApi(data) {
   return request.post('/api/auth/sms/login', data)
 }
 
+// 退出登录：无请求体，后端把当前 token 写入 Redis 黑名单
+export function logoutApi() {
+  return request.post('/api/auth/logout')
+}
+
 // 获取当前用户信息
 export function getMe() {
   return request.get('/api/auth/me')

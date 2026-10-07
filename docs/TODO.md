@@ -231,20 +231,20 @@
   - 面试话术：知道什么时候用 Redis（登录限流）与不用（点赞低频数据用 MySQL 原子更新）
   - 后续（不在本期）：注册接口同 IP 限频（S-3 中 A-7 部分），key 用 `register:fail:{ip}`，可升级滑动窗口
   - 后续优化：**两段式 TTL**——当前固定窗口从第 1 次失败起算，若 5 次失败拖得分散（接近 600s），触发锁定时剩余锁定时间可能不足。改进：第 1 次失败 `EXPIRE 600`（计数窗口）；计数达阈值那一刻再 `EXPIRE 600` 一次（锁定窗口），保证锁定恒有完整 10 分钟。再进一步可升级滑动窗口（ZSET）或 Lua 脚本保证原子性
-- [ ] **令牌失效机制（A-9 退出登录先行，对应需求 S-4）**：改密/登出使旧 JWT 失效
+- [x] **令牌失效机制（A-9 退出登录先行，对应需求 S-4）**：改密/登出使旧 JWT 失效
   - 契约：接口文档 §2.5——`POST /api/auth/logout`（**需鉴权**，不加入 WebConfig 放行列表）；登出把当前 token 写 Redis 黑名单立即失效，拦截器对所有受保护接口增加黑名单校验
-  - [ ] 后端 `common/TokenBlacklistService.java`（参照 `LoginRateLimiter` 模式注入 `StringRedisTemplate`）：
+  - [x] 后端 `common/TokenBlackListService.java`（参照 `LoginRateLimiter` 模式注入 `StringRedisTemplate`）：
     - `blacklist(token)`：key = `jwt:blacklist:` + `SHA-256(token)` 十六进制串（不存原始 token，避免 payload 落 Redis），value 固定 `"1"`，TTL = token 剩余有效期（`exp - now`，秒级，最小兜底 1s），到期自动清理
     - `isBlacklisted(token)`：`hasKey` 判断；Redis 异常时如何处理需斟酌（建议放行并打 error 日志——fail-open 保证可用性，与"登录限流强依赖"区分，黑名单只影响登出生效时机）
-  - [ ] `JwtUtil` 增加 `getExpiration(token)`（从 Claims 取 `exp`）供计算 TTL；黑名单的 SHA-256 计算放 Service 内
-  - [ ] `LoginController` 新增 `POST /api/auth/logout`：从 `Authorization` 头取 token → `TokenBlacklistService.blacklist(token)` → `Result.success(null)`；无请求体
-  - [ ] `JwtInterceptor.preHandle`：`isValid` 通过后、写 `UserContext` 前加 `isBlacklisted` 判断，命中走现有 `reject(response, "登录已过期，请重新登录")` 返回 401
-  - [ ] 前端 `api/auth.js`：新增 `logoutApi()` → `request.post('/api/auth/logout')`
-  - [ ] 前端 `stores/user.js`：`logout()` 改 `async`——`try { await logoutApi() } catch { /* 吞掉 */ } finally { 清 token/userInfo/removeToken() }`，接口成败不阻塞本地清理
-  - [ ] 前端 `views/Profile.vue`：`onLogout` 改 `async` 并 `await userStore.logout()` 后再提示 + 跳登录页
+  - [x] ~~`JwtUtil` 增加 `getExpiration(token)`~~：实际未新增该方法，直接在 Service 内 `jwtUtil.parseToken(token).getExpiration()` 取 exp；黑名单的 SHA-256 计算放 Service 内
+  - [x] `LoginController` 新增 `POST /api/auth/logout`：从 `Authorization` 头取 token → `TokenBlackListService.blacklist(token)` → `Result.success("成功退出")`；无请求体
+  - [x] `JwtInterceptor.preHandle`：`isValid` 通过后、写 `UserContext` 前加 `isBlacklisted` 判断，命中走现有 `reject(...)` 返回 401（实际提示文案为"token非法！"，后续可统一为"登录已过期，请重新登录"）
+  - [x] 前端 `api/auth.js`：新增 `logoutApi()` → `request.post('/api/auth/logout')`
+  - [x] 前端 `stores/user.js`：`logout()` 改 `async`——`try { await logoutApi() } catch { /* 吞掉 */ } finally { 清 token/userInfo/removeToken() }`，接口成败不阻塞本地清理
+  - [x] 前端 `views/Profile.vue`：`onLogout` 改 `async` 并 `await userStore.logout()` 后再提示 + 跳登录页
   - [ ] 注意 401 拦截器副作用：`request.js` 响应拦截器对 logout 请求返回 401 会弹"登录已过期"并跳登录页，与正常登出殊途同归但可能多一条 toast；如体验不佳，实现时给该请求加静默标记（如 `config.skipAuthRedirect`）
-  - [ ] 验证（需本地 Redis）：① 登录拿 token → 调 logout 返回 200；② 旧 token 再调 `/api/auth/me` 返回 401；③ `redis-cli` 确认 `jwt:blacklist:*` key 存在且 TTL ≈ 7 天；④ 重新登录的新 token 访问正常；⑤ Redis 中 key 到期自动消失；⑥ 无 token/伪造 token 调 logout 返回 401 且前端仍退回登录页
-  - 不做：不引入 refresh token 体系；A-5 修改密码实现时直接复用 `TokenBlacklistService`（改密成功后拉黑当前 token）
+  - [x] 验证（需本地 Redis，2026-10-07 实测）：① 登录拿 token → 调 logout 返回 200；② 旧 token 再调 `/api/auth/me` 返回 401；③ `redis-cli` 确认 `jwt:blacklist:*` key 存在且 TTL ≈ 7 天（实测 604688s）；④ 重新登录的新 token 访问正常；⑤ Redis 中 key 到期自动消失（TTL 机制保证，未实测等待）；⑥ 无 token/伪造 token 调 logout 返回 401 且前端仍退回登录页
+  - 不做：不引入 refresh token 体系；A-5 修改密码实现时直接复用 `TokenBlackListService`（改密成功后拉黑当前 token）
 
 ## 体验与扩展
 
