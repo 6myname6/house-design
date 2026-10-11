@@ -14,6 +14,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.housedesign.annotation.NoRepeatSubmit;
 import com.housedesign.common.BusinessException;
+import com.housedesign.common.IpUtils;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -44,7 +45,7 @@ public class NoRepeatSubmitAspect {
         // 取request
         ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         HttpServletRequest request = attrs.getRequest();
-        String clientIp = getClientIp(request);
+        String clientIp = IpUtils.getClientIp(request);
         // 拼key
         String key = KEY_PREFIX + request.getRequestURI() + ":" + clientIp;
         // SETNX占位
@@ -63,12 +64,4 @@ public class NoRepeatSubmitAspect {
         }
     }
 
-    private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip != null && !ip.isBlank() && !"unknown".equalsIgnoreCase(ip)) {
-            // 多级代理时取第一个
-            return ip.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
-    }
 }

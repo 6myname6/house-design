@@ -30,6 +30,8 @@ public class LoginServiceImpl implements LoginService {
     private final JwtUtil jwtUtil;
     private final LoginRateLimiter loginRateLimiter;
     private final SmsCodeService smsCodeService;
+    /** 用户不存在时用于拉平响应耗时的假 BCrypt 哈希（cost=10），仅用于时序对齐 */
+    private static final String DUMMY_HASH = "$2a$10$jOQld7IG2qbJtpYYxx1LF.wO0tAhn08mUYcPvkR7tj9nhS07Pm3ce";
 
     @Override
     public Long register(RegisterRequest registerRequest) {
@@ -57,22 +59,27 @@ public class LoginServiceImpl implements LoginService {
     }
 
     @Override
-    public LoginInfoResponse login(LoginRequest loginRequest) {
+    public LoginInfoResponse login(LoginRequest loginRequest, String ip) {
         String username = loginRequest.getUsername();
+        String password = loginRequest.getPassword();
         // 锁定期检查：已达失败上限则直接抛出429
         loginRateLimiter.checkLocked(username);
+        loginRateLimiter.checkIpLocked(ip);
         // 1.根据用户名查询用户
         User user = userMapper.selectOne(
                 new LambdaQueryWrapper<User>().eq(User::getUsername, loginRequest.getUsername()));
         if (user == null) {
-            loginRateLimiter.recordFailure(username);
+            // 用户不存在：dummy BCrypt 拉平耗时 + 只记IP
+            passwordEncoder.matches(password, DUMMY_HASH);
+            loginRateLimiter.recordIpFailure(ip);
             log.warn("用户名不存在！");
-            return null;
+            throw new BusinessException(400, "用户名或密码错误");
         }
         if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
-            // 密码错误，计数器+1
+            // 密码错误，账号+IP 计数器+1 ，不做dummy
             loginRateLimiter.recordFailure(username);
-            return null;
+            loginRateLimiter.recordIpFailure(ip);
+            throw new BusinessException(400, "用户名或密码错误");
         }
         // 用户名存在，密码正确，清除计数器，返回登录信息
         // 生成 JWT 令牌

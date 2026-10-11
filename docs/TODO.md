@@ -230,7 +230,15 @@
   - 为什么用 Redis：高频短时计数（INCR 原子 + 自动过期），MySQL 无过期机制且写压力大；权衡：计数未持久化，Redis 重启即解锁（简历项目可接受，接口文档 §9 已注明）
   - 面试话术：知道什么时候用 Redis（登录限流）与不用（点赞低频数据用 MySQL 原子更新）
   - 后续（不在本期）：注册接口同 IP 限频（S-3 中 A-7 部分），key 用 `register:fail:{ip}`，可升级滑动窗口
-  - 后续优化：**两段式 TTL**——当前固定窗口从第 1 次失败起算，若 5 次失败拖得分散（接近 600s），触发锁定时剩余锁定时间可能不足。改进：第 1 次失败 `EXPIRE 600`（计数窗口）；计数达阈值那一刻再 `EXPIRE 600` 一次（锁定窗口），保证锁定恒有完整 10 分钟。再进一步可升级滑动窗口（ZSET）或 Lua 脚本保证原子性
+  - 后续优化：**两段式 TTL**——当前固定窗口从第 1 次失败起算，若 5 次失败拖得分散（接近 600s），触发锁定时剩余锁定时间可能不足。改进：第 1 次失败 `EXPIRE 600`（计数窗口）；计数达阈值那一刻再 `EXPIRE 600` 一次（锁定窗口），保证锁定恒有完整 10 分钟。再进一步可升级滑动窗口（ZSET）
+- [x] **登录限流安全加固（2026-10-11，防恶意锁定/撞库/用户名枚举）**
+  - [x] Lua 脚本原子化 INCR+首次 EXPIRE（账号/IP/短信失败计数共用），防两步之间崩溃导致 key 永不过期；`DefaultRedisScript<Long>`
+  - [x] parseInt 脏数据容错：NumberFormatException 时删 key 并放行
+  - [x] 新增 IP 维度 `login:ip:fail:{ip}`，阈值 20/10 分钟（`app.login-limit.ip-max-fail-count` / `ip-lock-seconds`），登录成功不清零只靠 TTL；`common/IpUtils` 取 X-Forwarded-For 首段，NoRepeatSubmitAspect 复用
+  - [x] 用户不存在不写账号计数（防锁死他人），仅记 IP；对固定 cost=10 的 `DUMMY_HASH` 跑一次 BCrypt 拉平耗时（实测两路径均约 90ms）
+  - [x] 失败统一抛 BusinessException(400, "用户名或密码错误")，Controller 删除 null 兜底分支
+  - [x] 实测（2026-10-11）：不存在用户连刷零账号 key；账号第 5 次 429；IP 第 20 次 429；成功登录只清账号不清 IP
+  - 后续：IP 取信仅在可信代理后采信 X-Forwarded-For（修复计划已列）；同 IP 注册限频 A-7 待做
 - [x] **令牌失效机制（A-9 退出登录先行，对应需求 S-4）**：改密/登出使旧 JWT 失效
   - 契约：接口文档 §2.5——`POST /api/auth/logout`（**需鉴权**，不加入 WebConfig 放行列表）；登出把当前 token 写 Redis 黑名单立即失效，拦截器对所有受保护接口增加黑名单校验
   - [x] 后端 `common/TokenBlackListService.java`（参照 `LoginRateLimiter` 模式注入 `StringRedisTemplate`）：

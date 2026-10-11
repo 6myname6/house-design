@@ -11,7 +11,7 @@ public interface LoginService {
     Long register(RegisterRequest registerRequest);
 
     // 登录接口
-    LoginInfoResponse login(LoginRequest loginRequest);
+    LoginInfoResponse login(LoginRequest loginRequest, String ip);
 
     // 验证码登录或注册
     LoginInfoResponse loginByPhone(SmsLoginRequest smsLoginRequest);

@@ -9,6 +9,7 @@ import com.housedesign.dto.request.SmsCodeRequest;
 import com.housedesign.dto.request.SmsLoginRequest;
 import com.housedesign.dto.response.LoginInfoResponse;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.housedesign.common.IpUtils;
 import com.housedesign.common.Result;
 import com.housedesign.common.SmsCodeService;
 
@@ -35,15 +37,15 @@ public class LoginController {
     // 登录接口
     @PostMapping("/login")
     // 1. 获取前端传入参数：用户名，密码
-    public Result<String> login(@RequestBody @Valid LoginRequest loginRequest) {
+    public Result<String> login(@RequestBody @Valid LoginRequest loginRequest,
+            HttpServletRequest httpServletRequest) {
         log.info("用户：{}登录中...", loginRequest.getUsername());
+        // 取Ip
+        String ip = IpUtils.getClientIp(httpServletRequest);
         // 2.调用UserService.login方法登录用户
-        LoginInfoResponse info = userService.login(loginRequest);
+        LoginInfoResponse info = userService.login(loginRequest, ip);
         // 3.根据登录结果返回响应
-        if (info != null) {
-            return Result.success(info.getToken());
-        }
-        return Result.error(400, "用户名或密码错误");
+        return Result.success(info.getToken());
     }
 
     @NoRepeatSubmit
