@@ -50,7 +50,6 @@ public class LoginServiceImpl implements LoginService {
         user.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
         try {
             userMapper.insert(user);
-
         } catch (DuplicateKeyException e) {
             log.warn("用户名 {} 并发注册冲突", registerRequest.getUsername());
             throw new BusinessException(400, "用户名并发冲突！");
@@ -106,7 +105,17 @@ public class LoginServiceImpl implements LoginService {
             user.setPhone(phone);
             user.setUsername("用户" + RandomUtil.randomString(6));
             user.setNickname("筑梦家er" + RandomUtil.randomString(6));
-            userMapper.insert(user);
+            try {
+                userMapper.insert(user);
+            } catch (DuplicateKeyException e) {
+                // 并发下另一个请求已经建档：重查，用已存在的用户登录
+                log.warn("手机号{}并发冲突，重查已建档用户", phone);
+                user = userMapper.selectOne(
+                        new LambdaQueryWrapper<User>().eq(User::getPhone, phone));
+            }
+        }
+        if (user == null) {
+            throw new BusinessException(500, "登录失败，请重试");
         }
         String token = jwtUtil.createToken(user.getId(), user.getUsername());
         return new LoginInfoResponse(user.getId(), token);

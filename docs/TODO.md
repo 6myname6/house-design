@@ -53,6 +53,7 @@
   - `verify(phone, code)`：`GET` 比对，不一致返回 false（保留 key），一致 `DEL` 后返回 true
 - [x] 5. **请求 DTO**：`SmsCodeRequest {phone}`、`SmsLoginRequest {phone, code}`（`@NotBlank` + 手机号正则）
 - [x] 6. **LoginService.loginByPhone(SmsLoginRequest)**：验码失败抛 400 → 按 phone 查用户 → 不存在则自动建档 → 签发 JWT
+  - [x] 并发首登安全（2026-10-12，代码审查第 8 项）：自动建档 insert 捕获 `DuplicateKeyException`（uk_phone 唯一索引），重查已建档用户继续签 token；重查仍为 null 抛 500 兜底。实测同一新手机号 10 并发、6 个同时通过一次性验证码校验，全部 200 且 token 同一 userId，库中仅 1 条记录
 - [x] 7. **LoginController** 加 `POST /sms/code`、`POST /sms/login`
 - [x] 8. **WebConfig** 放行两个新路径
 - [x] 9. **配置项**：`app.sms.code-ttl-seconds=300`、`app.sms.resend-interval-seconds=60`
