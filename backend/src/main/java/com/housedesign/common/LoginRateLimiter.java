@@ -1,10 +1,7 @@
 package com.housedesign.common;
 
-import java.util.Collections;
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
@@ -32,13 +29,7 @@ public class LoginRateLimiter {
     private long ipLockSeconds;
 
     // redis脚本
-    private static final DefaultRedisScript script = new DefaultRedisScript<Long>(
-            "local count = redis.call('INCR', KEYS[1])\n" + //
-                    "if count == 1 then\n" + //
-                    "    redis.call('EXPIRE', KEYS[1], ARGV[1])\n" + //
-                    "end\n" + //
-                    "return count",
-            Long.class);
+    private final RedisAtomicCounter redisAtomicCounter;
 
     // 类内方法
     private String buildLockMessage(String key) {
@@ -81,8 +72,7 @@ public class LoginRateLimiter {
         String key = KEY_PREFIX + username;
         // 2.计数+1
         // 3.仅首次失败设置过期时间
-        Long failCount = (Long) stringRedisTemplate.execute(script, Collections.singletonList(key),
-                String.valueOf(lockSeconds));
+        Long failCount = redisAtomicCounter.incrWithTtl(key, lockSeconds);
 
         // 4.输出日志
         log.info("username:{}登录失败{}次", username, failCount);
@@ -126,8 +116,7 @@ public class LoginRateLimiter {
         String key = FAIL_KEY_PREFIX + phone;
         // 2.计数+1
         // 3.仅首次失败设置过期时间
-        Long failCount = (Long) stringRedisTemplate.execute(script, Collections.singletonList(key),
-                "300");
+        Long failCount = redisAtomicCounter.incrWithTtl(key, 300L);
         // 4.输出日志
         log.info("验证码登录失败{}次", failCount);
         if (failCount != null && failCount >= maxVerifyFailCount) {
@@ -172,8 +161,7 @@ public class LoginRateLimiter {
         String key = IPKEY_PREFIX + ip;
         // 2.计数+1
         // 3.仅首次失败设置过期时间
-        Long failCount = (Long) stringRedisTemplate.execute(script, Collections.singletonList(key),
-                String.valueOf(ipLockSeconds));
+        Long failCount = redisAtomicCounter.incrWithTtl(key, ipLockSeconds);
         // 4.输出日志
         log.info("当前IP登录失败{}次", failCount);
         if (failCount != null && failCount >= ipMaxFailCount) {

@@ -59,8 +59,10 @@ public class LoginController {
 
     // 发送验证码
     @PostMapping("/sms/code")
-    public Result<String> postAcode(@RequestBody @Valid SmsCodeRequest smsCodeRequest) {
-        smsCodeService.sendCode(smsCodeRequest.getPhone());
+    public Result<String> postAcode(@RequestBody @Valid SmsCodeRequest smsCodeRequest,
+            HttpServletRequest httpServletRequest) {
+        String ip = IpUtils.getClientIp(httpServletRequest);
+        smsCodeService.sendCode(smsCodeRequest.getPhone(), ip);
         return Result.success();
     }
 

@@ -90,9 +90,10 @@
   - 方案 B：保持先写，但 `send()` 抛异常时回滚 `DEL` 掉 code/limit 两个 key。
   - 附加：两条 SET 之间进程崩溃会导致频控缺失（低危），可用 Lua 脚本把"写 code + 写 limit"做成原子操作。
 
-- [ ] **④ 同手机号 / 同 IP 每日发送总量上限（防资损）**
+- [x] **④ 同手机号 / 同 IP 每日发送总量上限（防资损）**（2026-10-12 完成）
   - 背景：`sms:limit` 只管 60s 间隔，真实短信按条收费，不限总量一天可被刷上千条。
-  - 方案：新增 `sms:daily:{phone}:{yyyyMMdd}`（String 整数，TTL 到当日 24 点）——每次发送前 `INCR`，超过上限（如 10 条/日）拒绝；同一逻辑可按 IP 维度再加 `sms:daily:ip:{ip}:{date}`，对应 A-7 防刷。
+  - 实际实现：`sms:daily:phone:{phone}`（上限 10）、`sms:daily:ip:{ip}`（上限 20，兼容 NAT），均经 `RedisAtomicCounter` Lua 原子 INCR+首次 EXPIRE，**固定 86400s 窗口**（从首次请求起算，非原方案的自然日零点，简历项目可接受）；被拒请求也计数；60s 频控拒绝不消耗日额度；阈值配置 `app.sms.daily-phone-limit` / `daily-ip-limit` / `daily-window-seconds`。实测：并发双击仅 1 条、第 11 条手机号 429、换号刷第 21 条 IP 429。
+  - 同期加固：60s 频控由"hasKey+set 两步"改为 `setIfAbsent` 原子占位（key 修正为 `sms:limit:login:{phone}`）；Lua 原子计数器抽为公共组件 `common/RedisAtomicCounter`（登录/IP/短信/日上限共用）；`send()` 异常时删除 60s 占位允许立即重试（方案 B 的轻量版，code key 不删，300s 后自然过期且会被重发覆盖）。
 
 > 另：key 建议补"业务场景"段（`sms:code:login:{phone}` / `sms:code:reset:{phone}`），避免以后 A-6 找回密码与登录验证码互相覆盖/越场重放——此项未列入本清单，可视情况提前做。
 

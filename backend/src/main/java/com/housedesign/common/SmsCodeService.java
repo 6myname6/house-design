@@ -12,28 +12,52 @@ import cn.hutool.core.util.RandomUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-@Component
 @Slf4j
+@Component
 @RequiredArgsConstructor
 public class SmsCodeService {
     private static final String CODE_KEY_PREFIX = "sms:code:login:";
-    private static final String LIMIT_KEY_PREFIX = "sms:limit:reset:";
+    private static final String LIMIT_KEY_PREFIX = "sms:limit:login:";
 
     @Value("${app.sms.code-ttl-seconds:300}")
     private long codeTtlSeconds;
+
     @Value("${app.sms.resend-interval-seconds:60}")
     private long resendIntervalSeconds;
+
+    @Value("${app.sms.daily-phone-limit:10}")
+    private int dailyPhoneLimit;// 同手机号限制
+
+    @Value("${app.sms.daily-ip-limit:20}")
+    private int dailyIpLimit;// 同IP限制
+
+    @Value("${app.sms.daily-window-seconds:86400}")
+    private long dailyWindowSeconds;
+
     private final StringRedisTemplate stringRedisTemplate;
     private final SmsService smsService;
     private final LoginRateLimiter loginRateLimiter;
+    private final RedisAtomicCounter redisAtomicCounter;
 
-    public void sendCode(String phone) {
+    public void sendCode(String phone, String ip) {
         // 1.拼频控key
         String limitKey = LIMIT_KEY_PREFIX + phone;
         String codeKey = CODE_KEY_PREFIX + phone;
-        if (stringRedisTemplate.hasKey(limitKey)) {
-            log.warn("发送过于频繁");
-            throw new BusinessException(429, "发送过于频繁，请" + stringRedisTemplate.getExpire(limitKey) + "秒后重试");
+        Boolean acquired = stringRedisTemplate.opsForValue().setIfAbsent(limitKey, "1", resendIntervalSeconds,
+                TimeUnit.SECONDS);
+        if (Boolean.FALSE.equals(acquired)) {
+            // 占位失败 = 60 秒内已发送过，取剩余TTL拼提示
+            Long remain = stringRedisTemplate.getExpire(limitKey);
+            throw new BusinessException(429, "发送过于频繁，请" + remain + "秒后重试");
+        }
+
+        long phoneCount = redisAtomicCounter.incrWithTtl("sms:daily:phone:" + phone, dailyWindowSeconds);
+        if (phoneCount > dailyPhoneLimit) {
+            throw new BusinessException(429, "今日验证码发送次数已达上限，请明天再试");
+        }
+        long ipCount = redisAtomicCounter.incrWithTtl("sms:daily:ip:" + ip, dailyWindowSeconds);
+        if (ipCount > dailyIpLimit) {
+            throw new BusinessException(429, "当前网络今日请求次数过多，请明天再试");
         }
         // 生成验证码
         String code = RandomUtil.randomNumbers(6);
@@ -41,13 +65,17 @@ public class SmsCodeService {
         stringRedisTemplate.opsForValue().set(codeKey, code, codeTtlSeconds, TimeUnit.SECONDS);
         // 清除次数
         loginRateLimiter.smsClearOnSuccess(phone);
-        // 写频控标记
-        stringRedisTemplate.opsForValue().set(limitKey, "1", resendIntervalSeconds, TimeUnit.SECONDS);
         // 调用smsService
-        smsService.send(phone, code);
+        try {
+            smsService.send(phone, code);
+        } catch (Exception e) {
+            log.warn("发送失败");
+            stringRedisTemplate.delete(limitKey);
+            throw e;
+        }
     }
 
-    // 校验验证码,正确则删除，并返回true，错误则/过期返回false（保留key）
+    // 校验验证码,正确则删除，并返回true，错误/过期返回false（保留key）
     public boolean verify(String phone, String inputCode) {
         loginRateLimiter.smsCheckLocked(phone);
         // 拼key
