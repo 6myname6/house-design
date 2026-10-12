@@ -29,8 +29,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/auth/sms/code", "/api/auth/sms/login",
                         "/files/**",
                         // Swagger/OpenAPI 文档不鉴权
-                        "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**"
-                );
+                        "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**");
     }
 
     @Override

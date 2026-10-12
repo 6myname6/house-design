@@ -35,24 +35,41 @@ public class LoginServiceImpl implements LoginService {
 
     @Override
     public Long register(RegisterRequest registerRequest) {
-        // 检查是否有重复用户名
-        Long count = userMapper.selectCount(
-                new LambdaQueryWrapper<User>().eq(User::getUsername, registerRequest.getUsername()));
-        if (count > 0) {
-            // 有重复用户名则返回空
+        String phone = registerRequest.getPhone();
+        String username = registerRequest.getUsername();
+        // 1.校验短信验证码（通过即一次性删除）
+        if (!smsCodeService.verify(phone, registerRequest.getCode())) {
+            throw new BusinessException(400, "验证码错误或已过期");
+        }
+        // 2.用户名占用预检
+        Long nameCount = userMapper.selectCount(
+                new LambdaQueryWrapper<User>().eq(User::getUsername, username));
+        if (nameCount > 0) {
             throw new BusinessException(400, "抱歉，这个用户名被别人使用了，换一个试试吧~");
         }
-        // 没有重复用户名则成功注册：new一个新用户并插入数据库
+        // 3.手机号占用预检
+        Long phoneCount = userMapper.selectCount(
+                new LambdaQueryWrapper<User>().eq(User::getPhone, phone));
+        if (phoneCount > 0) {
+            throw new BusinessException(400, "该手机号已注册，请直接登录");
+        }
+        // 4.建档：用户名 + 手机号 + BCrypt 加密密码
         User user = new User();
-        user.setUsername(registerRequest.getUsername());
-        user.setNickname("筑梦家er_" + cn.hutool.core.util.RandomUtil.randomString(6));
-        // 密码加密存储
+        user.setUsername(username);
+        user.setPhone(phone);
+        user.setNickname("筑梦家er_" + RandomUtil.randomString(6));
         user.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
         try {
             userMapper.insert(user);
         } catch (DuplicateKeyException e) {
-            log.warn("用户名 {} 并发注册冲突", registerRequest.getUsername());
-            throw new BusinessException(400, "用户名并发冲突！");
+            // 并发下唯一索引兜底：按手机号/用户名重查，给出准确的冲突提示
+            log.warn("注册并发冲突：username={}, phone={}", username, phone);
+            User existingByPhone = userMapper.selectOne(
+                    new LambdaQueryWrapper<User>().eq(User::getPhone, phone));
+            if (existingByPhone != null) {
+                throw new BusinessException(400, "该手机号已注册，请直接登录");
+            }
+            throw new BusinessException(400, "抱歉，这个用户名被别人使用了，换一个试试吧~");
         }
         return user.getId();
     }
@@ -96,26 +113,10 @@ public class LoginServiceImpl implements LoginService {
         if (!smsCodeService.verify(phone, code)) {
             throw new BusinessException(400, "验证码错误或已过期");
         }
-        // 2.按手机号查用户
+        // 2.按手机号查用户：登录接口不负责建档
         User user = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getPhone, phone));
-
-        // 3.不存在则自动建档
         if (user == null) {
-            user = new User();
-            user.setPhone(phone);
-            user.setUsername("用户" + RandomUtil.randomString(6));
-            user.setNickname("筑梦家er" + RandomUtil.randomString(6));
-            try {
-                userMapper.insert(user);
-            } catch (DuplicateKeyException e) {
-                // 并发下另一个请求已经建档：重查，用已存在的用户登录
-                log.warn("手机号{}并发冲突，重查已建档用户", phone);
-                user = userMapper.selectOne(
-                        new LambdaQueryWrapper<User>().eq(User::getPhone, phone));
-            }
-        }
-        if (user == null) {
-            throw new BusinessException(500, "登录失败，请重试");
+            throw new BusinessException(400, "该手机号未注册，请先注册");
         }
         String token = jwtUtil.createToken(user.getId(), user.getUsername());
         return new LoginInfoResponse(user.getId(), token);

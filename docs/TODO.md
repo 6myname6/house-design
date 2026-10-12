@@ -54,6 +54,8 @@
 - [x] 5. **请求 DTO**：`SmsCodeRequest {phone}`、`SmsLoginRequest {phone, code}`（`@NotBlank` + 手机号正则）
 - [x] 6. **LoginService.loginByPhone(SmsLoginRequest)**：验码失败抛 400 → 按 phone 查用户 → 不存在则自动建档 → 签发 JWT
   - [x] 并发首登安全（2026-10-12，代码审查第 8 项）：自动建档 insert 捕获 `DuplicateKeyException`（uk_phone 唯一索引），重查已建档用户继续签 token；重查仍为 null 抛 500 兜底。实测同一新手机号 10 并发、6 个同时通过一次性验证码校验，全部 200 且 token 同一 userId，库中仅 1 条记录
+  - [x] 统一注册入口（2026-10-12 需求定版）：废弃独立的 `/sms/register` 与 SmsRegisterRequest；`/api/auth/register` 统一为 username(3-32)+phone+code+password(8-32)，校验短信验证码、用户名/手机号双唯一（预检 + 唯一索引兜底），注册后前端自动登录；`/sms/login` 仅已注册手机号可用，未注册 400 引导去注册页；登录页手机 Tab 恢复纯登录，注册页（Register.vue）承载手机号+验证码行
+  - [x] 发码场景预检（2026-10-12）：SmsCodeRequest 加 scene=login/register（@Pattern 白名单），sendCode 在频控写入前按场景校验手机号注册状态，预检失败不发短信/不占位/不计数；权衡：存在免验证码手机号枚举面，文档已注明上真实短信前加图形验证码
 - [x] 7. **LoginController** 加 `POST /sms/code`、`POST /sms/login`
 - [x] 8. **WebConfig** 放行两个新路径
 - [x] 9. **配置项**：`app.sms.code-ttl-seconds=300`、`app.sms.resend-interval-seconds=60`

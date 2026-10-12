@@ -7,12 +7,12 @@ import com.housedesign.dto.response.LoginInfoResponse;
 
 public interface LoginService {
 
-    /** 注册 */
+    /** 统一注册：用户名 + 手机号 + 验证码 + 密码 */
     Long register(RegisterRequest registerRequest);
 
-    // 登录接口
+    // 账号密码登录
     LoginInfoResponse login(LoginRequest loginRequest, String ip);
 
-    // 验证码登录或注册
+    // 手机号验证码登录（手机号必须已注册）
     LoginInfoResponse loginByPhone(SmsLoginRequest smsLoginRequest);
 }

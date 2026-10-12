@@ -28,6 +28,22 @@
           <el-form-item prop="username">
             <el-input v-model="form.username" placeholder="用户名（3-32 个字符）" maxlength="32" autocomplete="username" />
           </el-form-item>
+          <el-form-item prop="phone">
+            <el-input v-model="form.phone" placeholder="手机号" maxlength="11" autocomplete="tel" />
+          </el-form-item>
+          <el-form-item prop="code">
+            <div class="code-row">
+              <el-input
+                v-model="form.code"
+                placeholder="6 位验证码"
+                maxlength="6"
+                inputmode="numeric"
+              />
+              <el-button class="code-btn" :disabled="countdown > 0 || codeSending" :loading="codeSending" @click="onSendCode">
+                {{ countdown > 0 ? `${countdown}s 后重发` : '获取验证码' }}
+              </el-button>
+            </div>
+          </el-form-item>
           <el-form-item prop="password">
             <el-input
               v-model="form.password"
@@ -63,10 +79,11 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '../stores/user'
+import { sendSmsCodeApi } from '../api/auth'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -74,12 +91,20 @@ const userStore = useUserStore()
 const loading = ref(false)
 const formRef = ref(null)
 
-const form = reactive({ username: '', password: '', confirm: '' })
+const form = reactive({ username: '', phone: '', code: '', password: '', confirm: '' })
 
 const rules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
     { min: 3, max: 32, message: '用户名长度 3-32 个字符', trigger: 'blur' }
+  ],
+  phone: [
+    { required: true, message: '请输入手机号', trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确', trigger: 'blur' }
+  ],
+  code: [
+    { required: true, message: '请输入验证码', trigger: 'blur' },
+    { pattern: /^\d{6}$/, message: '请输入 6 位数字验证码', trigger: 'blur' }
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
@@ -94,13 +119,49 @@ const rules = {
   ]
 }
 
+// ---- 短信验证码（与登录页同一发码接口、同一频控）----
+const countdown = ref(0)
+const codeSending = ref(false)
+let countdownTimer = null
+
+async function onSendCode() {
+  if (codeSending.value || countdown.value > 0) return
+  // 发码前只校验手机号
+  try {
+    await formRef.value.validateField('phone')
+  } catch {
+    return
+  }
+  codeSending.value = true
+  try {
+    await sendSmsCodeApi({ phone: form.phone, scene: 'register' })
+    ElMessage.success('验证码已发送，请查收（Mock 环境请看后端日志）')
+    countdown.value = 60
+    countdownTimer = setInterval(() => {
+      countdown.value -= 1
+      if (countdown.value <= 0) {
+        clearInterval(countdownTimer)
+        countdownTimer = null
+      }
+    }, 1000)
+  } catch {
+    // 频控/错误提示由请求拦截器统一弹出
+  } finally {
+    codeSending.value = false
+  }
+}
+
+onUnmounted(() => {
+  if (countdownTimer) clearInterval(countdownTimer)
+})
+
 async function onSubmit() {
   // 重入守卫 + 同步置位：必须在 await 之前锁住，否则双击的第二次点击仍会穿过
   if (loading.value) return
   loading.value = true
   try {
     await formRef.value.validate()
-    await userStore.register(form.username, form.password)
+    await userStore.register(form.username, form.password, form.phone, form.code)
     ElMessage.success('注册成功，已自动登录')
     router.push('/projects')
   } catch {
@@ -203,6 +264,16 @@ async function onSubmit() {
   color: var(--hd-ink);
 }
 .auth-form :deep(.el-form-item) { margin-bottom: 22px; }
+
+.code-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+.code-btn {
+  flex-shrink: 0;
+  min-width: 108px;
+}
 
 .submit {
   width: 100%;

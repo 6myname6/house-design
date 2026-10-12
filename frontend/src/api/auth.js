@@ -10,7 +10,7 @@ export function loginApi(data) {
   return request.post('/api/auth/login', data)
 }
 
-// 发送短信验证码（手机登录）：data = { phone }，无返回数据
+// 发送短信验证码：data = { phone, scene }，scene=login（已注册）/register（未注册），无返回数据
 export function sendSmsCodeApi(data) {
   return request.post('/api/auth/sms/code', data)
 }

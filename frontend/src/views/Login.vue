@@ -149,7 +149,7 @@ async function onSendCode() {
   }
   codeSending.value = true
   try {
-    await sendSmsCodeApi({ phone: phoneForm.phone })
+    await sendSmsCodeApi({ phone: phoneForm.phone, scene: 'login' })
     ElMessage.success('验证码已发送，请查收（Mock 环境请看后端日志）')
     countdown.value = 60
     countdownTimer = setInterval(() => {

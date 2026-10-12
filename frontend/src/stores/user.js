@@ -22,7 +22,7 @@ export const useUserStore = defineStore('user', {
       // 登录成功后拉一次用户信息回显
       await this.fetchMe()
     },
-    // 手机验证码登录：拿 token 存 localStorage + state（新手机号后端自动建档）
+    // 手机验证码登录：手机号必须已注册
     async loginByPhone(phone, code) {
       const token = await smsLoginApi({ phone, code })
       this.token = token
@@ -31,9 +31,9 @@ export const useUserStore = defineStore('user', {
       // 登录成功后拉一次用户信息回显
       await this.fetchMe()
     },
-    // 注册：成功后自动登录
-    async register(username, password) {
-      await registerApi({ username, password })
+    // 注册：用户名 + 手机号 + 验证码 + 密码；成功后自动登录
+    async register(username, password, phone, code) {
+      await registerApi({ username, password, phone, code })
       await this.login(username, password)
     },
     // 拉取当前用户信息

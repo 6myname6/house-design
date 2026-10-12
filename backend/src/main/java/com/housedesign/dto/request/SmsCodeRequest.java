@@ -13,4 +13,9 @@ public class SmsCodeRequest {
     @NotBlank(message = "手机号不能为空")
     @Pattern(regexp = "^1[3-9]\\d{9}$", message = "手机号格式错误")
     private String phone;
+
+    /** 发码场景：login=手机登录（手机号必须已注册），register=注册（手机号必须未注册） */
+    @NotBlank(message = "场景不能为空")
+    @Pattern(regexp = "^(login|register)$", message = "非法场景")
+    private String scene;
 }

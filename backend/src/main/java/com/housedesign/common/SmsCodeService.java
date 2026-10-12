@@ -6,7 +6,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.housedesign.Service.SmsService;
+import com.housedesign.entity.User;
+import com.housedesign.mapper.UserMapper;
 
 import cn.hutool.core.util.RandomUtil;
 import lombok.RequiredArgsConstructor;
@@ -38,8 +41,20 @@ public class SmsCodeService {
     private final SmsService smsService;
     private final LoginRateLimiter loginRateLimiter;
     private final RedisAtomicCounter redisAtomicCounter;
+    private final UserMapper userMapper;
 
-    public void sendCode(String phone, String ip) {
+    public void sendCode(String phone, String ip, String scene) {
+        // 0.按场景预检手机号注册状态：放在所有频控写入之前，提示后用户可立即在正确页面重发
+        Long phoneExists = userMapper.selectCount(
+                new LambdaQueryWrapper<User>().eq(User::getPhone, phone));
+        if ("register".equals(scene) && phoneExists > 0) {
+            log.warn("发码被拒：手机号{}已注册，场景=register", phone);
+            throw new BusinessException(400, "该手机号已注册，请直接登录");
+        }
+        if ("login".equals(scene) && phoneExists == 0) {
+            log.warn("发码被拒：手机号{}未注册，场景=login", phone);
+            throw new BusinessException(400, "该手机号未注册，请先注册");
+        }
         // 1.拼频控key
         String limitKey = LIMIT_KEY_PREFIX + phone;
         String codeKey = CODE_KEY_PREFIX + phone;

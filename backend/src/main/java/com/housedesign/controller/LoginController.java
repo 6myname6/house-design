@@ -62,11 +62,11 @@ public class LoginController {
     public Result<String> postAcode(@RequestBody @Valid SmsCodeRequest smsCodeRequest,
             HttpServletRequest httpServletRequest) {
         String ip = IpUtils.getClientIp(httpServletRequest);
-        smsCodeService.sendCode(smsCodeRequest.getPhone(), ip);
+        smsCodeService.sendCode(smsCodeRequest.getPhone(), ip, smsCodeRequest.getScene());
         return Result.success();
     }
 
-    // 验证码登录或注册
+    // 验证码登录（手机号必须已注册）
     @PostMapping("/sms/login")
     public Result<String> smsCodeLoginOrRegister(@RequestBody @Valid SmsLoginRequest smsLoginRequest) {
         LoginInfoResponse infoResponse = userService.loginByPhone(smsLoginRequest);
