@@ -1,9 +1,11 @@
 package com.housedesign.Service.impl;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -189,6 +191,18 @@ public class PostServiceImpl implements PostService {
             throw new IllegalArgumentException("只能删除自己的帖子！");
         }
         // 按 post_id 删除该帖子的评论与点赞（deleteById 是按主键删，这里必须按外键 post_id 删）
+        // 1. 查出帖子所有评论id
+        List<Long> allIds = postCommentMapper.selectList(
+                new LambdaQueryWrapper<PostComment>()
+                        .select(PostComment::getId)
+                        .eq(PostComment::getPostId, id))
+                .stream().map(PostComment::getId).toList();
+
+        // 2.先删除帖子评论相关点赞
+        if (!allIds.isEmpty()) {
+            commentLikeMapper.delete(new LambdaQueryWrapper<CommentLike>().in(CommentLike::getCommentId, allIds));
+        }
+        // 3.删除该帖子的评论与点赞
         postCommentMapper.delete(new LambdaQueryWrapper<PostComment>()
                 .eq(PostComment::getPostId, id));
         postLikeMapper.delete(new LambdaQueryWrapper<PostLike>()
@@ -200,6 +214,7 @@ public class PostServiceImpl implements PostService {
 
     // 点赞或取消点赞
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public LikeResult toggleCommentLike(Long commentId) {
         Long userId = UserContext.getUserId();
         log.info("评论点赞切换：commentId={}, userId={}", commentId, userId);
@@ -223,7 +238,11 @@ public class PostServiceImpl implements PostService {
             CommentLike like = new CommentLike();
             like.setCommentId(commentId);
             like.setUserId(userId);
-            commentLikeMapper.insert(like);
+            try {
+                commentLikeMapper.insert(like);
+            } catch (DuplicateKeyException e) {
+                log.warn("你已经赞过了");
+            }
             log.info("评论点赞成功：commentId={}, userId={}", commentId, userId);
             return new LikeResult(countCommentLikes(commentId), true);
         }
@@ -247,11 +266,14 @@ public class PostServiceImpl implements PostService {
             log.warn("回复评论失败-被回复评论不存在：commentId={}, userId={}", commentId, userId);
             throw new BusinessException(404, "评论不存在");
         }
-        // 新建回复：parent_id 指向被回复评论，post_id 沿用父评论所属帖子
+
+        // 取顶层评论
+        Long rootId = parent.getParentId() == null ? parent.getId() : parent.getParentId();
+        // 新建回复：parent_id 指向顶层评论，post_id 沿用父评论所属帖子
         PostComment reply = new PostComment();
         reply.setPostId(parent.getPostId());
         reply.setUserId(userId);
-        reply.setParentId(commentId);
+        reply.setParentId(rootId);
         reply.setContent(request.getContent());
         reply.setImages(request.getImages());
         postCommentMapper.insert(reply);
@@ -265,6 +287,7 @@ public class PostServiceImpl implements PostService {
 
     // 点赞或取消点赞帖子
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public LikeResult togglePostLike(Long postId) {
         Long userId = UserContext.getUserId();// 当前用户id
         log.info("帖子点赞切换：postId={}, userId={}", postId, userId);
@@ -284,12 +307,16 @@ public class PostServiceImpl implements PostService {
             PostLike like = new PostLike();
             like.setPostId(postId);
             like.setUserId(userId);
-            postLikeMapper.insert(like);
-            // 同步帖子冗余计数（原子 +1，与 comment_count 同模式；UNIQUE 约束兜底防并发重复）
-            postMapper.update(null, new LambdaUpdateWrapper<Post>()
-                    .eq(Post::getId, postId)
-                    .setSql("like_count = like_count + 1"));
-            log.info("帖子点赞成功：postId={}, userId={}", postId, userId);
+            try {
+                postLikeMapper.insert(like);
+                // 同步帖子冗余计数（原子 +1，与 comment_count 同模式；UNIQUE 约束兜底防并发重复）
+                postMapper.update(null, new LambdaUpdateWrapper<Post>()
+                        .eq(Post::getId, postId)
+                        .setSql("like_count = like_count + 1"));
+                log.info("帖子点赞成功：postId={}, userId={}", postId, userId);
+            } catch (DuplicateKeyException e) {
+                log.warn("帖子点赞并发幂等：postId = {},userId = {}", postId, userId);
+            }
             return new LikeResult(countPostLikes(postId), true);
         } else {
             // 点赞了，取消点赞
@@ -345,20 +372,23 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(404, "只能删除自己的评论");
         }
         // 删除其关联回复数（本体 + 直接回复），用于回减帖子评论计数
-        long deleteCount = 1 + postCommentMapper.selectCount(
+
+        List<Long> childIds = postCommentMapper.selectList(
                 new LambdaQueryWrapper<PostComment>()
-                        .eq(PostComment::getParentId, commentId));
-        commentLikeMapper.delete(
-                new LambdaQueryWrapper<CommentLike>()
-                        .eq(CommentLike::getCommentId, commentId));
-        postCommentMapper.delete(
-                new LambdaQueryWrapper<PostComment>()
-                        .eq(PostComment::getParentId, commentId));
-        postCommentMapper.deleteById(commentId);
+                        .select(PostComment::getId)
+                        .eq(PostComment::getParentId, commentId))
+                .stream().map(PostComment::getId).toList();
+        long deleteCount = 1 + childIds.size();
+        List<Long> allIds = new ArrayList<>(childIds);
+        allIds.add(commentId);
+        if (!allIds.isEmpty()) {
+            commentLikeMapper.delete(new LambdaQueryWrapper<CommentLike>().in(CommentLike::getCommentId, allIds));
+            postCommentMapper.delete(new LambdaQueryWrapper<PostComment>().in(PostComment::getId, allIds));
+        }
         // 回减帖子评论计数（原子 SQL，避免并发覆盖）
         postMapper.update(null, new LambdaUpdateWrapper<Post>()
                 .eq(Post::getId, postComment.getPostId())
-                .setSql("comment_count = comment_count - " + deleteCount));
+                .setSql("comment_count =GREATEST( comment_count - " + deleteCount + ",0)"));
         log.info("删除评论成功：commentId={}, postId={}, userId={}", commentId, postComment.getPostId(), userId);
     }
 

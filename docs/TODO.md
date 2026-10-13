@@ -126,11 +126,11 @@
   - [x] 8. 前端（助手实现）：`api/ai.js` + `AiChat.vue` 保存/回传 conversationId，新会话按钮重置
   - [x] 9. 浏览器实测通过：首轮返 id、追问"那要多少钱"正确承接 30平原木风上下文、新会话隔离不串
   - 后续（不在本期）：图文链路手工记忆；窗口淘汰（>10条）可选补测
-- [ ] **AI-3 存储升级 Redis（🚧 2026-09-24 启动，企业标准，文档已先行）**：
-  - [ ] 1. 新建 `common/RedisChatMemoryStore implements ChatMemoryStore`：`StringRedisTemplate` + `ChatMessageSerializer`/Jackson codec；key 前缀、TTL 走 `@Value`（`app.ai.memory-ttl-seconds:86400`）
-  - [ ] 2. 改 `AiConfig`：删 JVM Map，Provider builder 加 `.chatMemoryStore(store)`
-  - [ ] 3. application.yml 加 `app.ai.memory-ttl-seconds: 86400`
-  - [ ] 4. 实测：发 3 轮 → 重启后端 → 追问仍承接上下文；Redis 中可见 `ai:memory:{id}` JSON
+- [x] **AI-3 存储升级 Redis（✅ 2026-09-27 完成 commit 866588b；2026-10-12 补用户归属隔离）**：
+  - [x] 1. 新建 `common/RedisChatMemoryStore implements ChatMemoryStore`：`StringRedisTemplate` + `ChatMessageSerializer`/Jackson codec；key 前缀、TTL 走 `@Value`（`app.ai.memory-ttl-seconds:86400`）
+  - [x] 2. 改 `AiConfig`：删 JVM Map，Provider builder 加 `.chatMemoryStore(store)`
+  - [x] 3. application.yml 加 `app.ai.memory-ttl-seconds: 86400`
+  - [x] 4. 实测：Redis 中可见记忆 JSON、TTL 24h；2026-10-12 第 17 项安全加固复测键为 `ai:memory:{userId}:{uuid}`，跨用户读不到历史
   - 选型：自研 Store 而非 langchain4j-redis——零新增依赖（复用 Lettuce）、TTL 可控、吃透 SPI
 - [ ] **图片 URL/base64 混合模式（OSS 已就绪，前置条件满足，对应 F-3 已完成）**：`AiChatController.toImageContent` 按前缀分流——`http(s)://` 开头走 `ImageContent.from(URI.create(url))`（智谱服务器自行下载），`data:` 开头走现有 DataURL 解析；接口契约 `images: string[]` 与前端零改动。约束：必须公网可达（公共读或有效期 ≥5min 的签名 URL；用公网 endpoint 而非 `-internal`；不能开 Referer 防盗链，智谱拉取不带 Referer）。适用：已存档图片（帖子图/设计图）走 URL 省 33% base64 膨胀，用户本地新图仍走 base64
 - [ ] **前端聊天页**：`api/ai.js` + `views/AiChat.vue`（气泡 UI、图片选择/预览、`FileReader` 转 DataURL、loading/503 重试）+ 路由 + TabBar 入口
@@ -160,6 +160,17 @@
 - [x] **删除评论**（§5.6）
   - 位置：`CommentController` + `PostService.delComment(commentId)`
   - 仅作者可删，归属校验参照 `deletePost`
+
+## 代码审查第四批：社区数据一致性 + AI 会话归属（✅ 2026-10-12 完成，修复计划第 13–17 项）
+
+> 对应 `docs/bug优化/代码审查修复计划.md`（仅本地、不入库）第四批；契约变更见接口文档 §5.2–§5.6、§11.1。
+
+- [x] **13. 删帖级联补全**：`PostServiceImpl.deletePost` 先收集该帖全部评论 id → 删 `t_comment_like` → 删评论 → 删帖子点赞 → 删帖子本体，全程 `@Transactional(rollbackFor=Exception.class)`；历史 2 条孤儿评论点赞（id 1、4）已清理
+- [x] **14. 删评论级联 + 计数下界**：`delComment` 按 `parent_id` 精确收集子回复（排查期曾漏 where，已补上回归），合并本体 id 后删子回复点赞与回复本体；`comment_count` 改 `GREATEST(comment_count - n, 0)` 原子回减
+- [x] **15. 点赞并发幂等**：帖子/评论点赞 insert 捕获 `DuplicateKeyException` 按"已赞"幂等返回当前状态，不抛 500；两个 toggle 方法加 `@Transactional`；帖子取消点赞计数回减同样 `GREATEST` 兜底
+- [x] **16. 空白评论绕过 + 分页边界**：回复接口加 `@Valid`，评论/回复/发帖统一"文字非空白 或 图片非空"双层校验（`"   "+[]` 返回 400）；帖子列表 pageNum/pageSize 控制器夹紧（1–50，缺省 20）+ `MybatisPlusConfig` 分页插件 `setMaxLimit(50L)` 全局兜底
+- [x] **17. AI 会话 IDOR**：`AiChatServiceImpl.chat` 服务端组装 memoryId `{userId}:{conversationId}`（Redis 实际键 `ai:memory:{userId}:{uuid}`，前端只见原始 UUID）；conversationId 严格 UUID 正则白名单，非法 400「非法会话标识」
+- 实测：级联删除三表无残留；并发点赞无 500、计数准确；pageSize=99999 实际 50；空白评论 400；A 用户传 B 的 conversationId 读不到历史。测试用户/帖子/评论/点赞/Redis key 已全部清理。
 
 ## 性能优化
 

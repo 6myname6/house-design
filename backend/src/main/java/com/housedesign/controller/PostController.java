@@ -53,6 +53,15 @@ public class PostController {
     public Result<PageResult<PostResponse>> postList(@RequestParam(value = "mine", defaultValue = "false") boolean mine,
             @RequestParam(value = "pageNum", defaultValue = "1") int pageNum,
             @RequestParam(value = "pageSize", defaultValue = "20") int pageSize) {
+        if (pageNum < 1) {
+            pageNum = 1;
+        }
+        if (pageSize < 1) {
+            pageSize = 20;
+        }
+        if (pageSize > 50) {
+            pageSize = 50;
+        }
         log.info("显示帖子");
         return Result.success(postService.postList(mine, pageNum, pageSize));
     }

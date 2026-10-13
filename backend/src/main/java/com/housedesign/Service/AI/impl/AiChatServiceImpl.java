@@ -12,12 +12,14 @@ import dev.langchain4j.data.message.Content;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 
 import com.housedesign.Service.AI.AiChatAssistant;
 import com.housedesign.Service.AI.AiChatService;
 import com.housedesign.common.BusinessException;
+import com.housedesign.common.UserContext;
 import com.housedesign.dto.response.AiChatMemoryResponse;
 
 import lombok.RequiredArgsConstructor;
@@ -29,16 +31,24 @@ import lombok.extern.slf4j.Slf4j;
 public class AiChatServiceImpl implements AiChatService {
     private final AiChatAssistant aiChatAssistant;
     private final ChatModel chatModel;
+    private static final Pattern UUID_PATTERN = Pattern.compile(
+            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
     // 纯文本对话
     @Override
     public AiChatMemoryResponse chat(String conversationId, String question) {
+        Long userId = UserContext.getUserId();
 
         if (conversationId == null || conversationId.isBlank()) {
             conversationId = UUID.randomUUID().toString();
+        } else {
+            if (!UUID_PATTERN.matcher(conversationId).matches()) {
+                throw new BusinessException(400, "非法会话标识");
+            }
         }
         try {
-            String answer = aiChatAssistant.chat(conversationId, question);
+            String memoryId = userId + ":" + conversationId;
+            String answer = aiChatAssistant.chat(memoryId, question);
             return new AiChatMemoryResponse(conversationId, answer);
         } catch (RateLimitException | TimeoutException | InternalServerException | UnresolvedModelServerException e) {
             log.warn("AI 文本对话调用失败，conversationId={}", conversationId, e);

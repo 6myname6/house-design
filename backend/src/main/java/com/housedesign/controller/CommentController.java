@@ -4,11 +4,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.housedesign.Service.PostService;
+import com.housedesign.common.BusinessException;
 import com.housedesign.common.Result;
 import com.housedesign.dto.request.CommentRequest;
 import com.housedesign.dto.response.CommentResponse;
 import com.housedesign.dto.response.LikeResult;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -34,7 +36,11 @@ public class CommentController {
     // 回复评论（评论的评论）
     @PostMapping("/{id}/replies")
     public Result<CommentResponse> reply(@PathVariable("id") Long commentId,
-            @RequestBody CommentRequest request) {
+            @RequestBody @Valid CommentRequest request) {
+        if ((request.getContent() == null || request.getContent().isBlank())
+                && (request.getImages() == null || request.getImages().isEmpty())) {
+            throw new BusinessException(400, "请填写内容或上传图片，至少填一个");
+        }
         return Result.success(postService.replyComment(commentId, request));
     }
 
