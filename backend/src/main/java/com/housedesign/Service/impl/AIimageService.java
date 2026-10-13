@@ -5,8 +5,11 @@ import java.time.Duration;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.housedesign.common.AiImageException;
 
 import org.springframework.beans.factory.annotation.Value;
 import lombok.extern.slf4j.Slf4j;
@@ -51,12 +54,15 @@ public class AIimageService {
                     .retrieve()
                     .bodyToMono(JsonNode.class)
                     .block(Duration.ofSeconds(timeoutSeconds));
-        } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
-            // 智谱返回 4xx/5xx 时，把响应体（真实原因）带进异常消息，方便排查
-            String body = e.getResponseBodyAsString();
-            log.error("智谱发起生成被拒绝：status={}, body={}", e.getStatusCode(), body);
-            throw new IllegalStateException("智谱发起生成失败(" + e.getStatusCode() + ")："
-                    + (body == null || body.isBlank() ? e.getMessage() : truncate(body, 300)));
+        } catch (WebClientResponseException e) {
+            throw classifyHttpError(e, "智谱发起生成");
+        } catch (WebClientRequestException e) {
+            // 连不上/握手失败/断网等 IO 类故障：值得重试
+            log.warn("智谱发起生成网络异常", e);
+            throw new AiImageException("智谱网络连接失败，请稍后重试", true, null, e);
+        } catch (IllegalStateException e) {
+            // block 超时抛 IllegalStateException("Timeout on blocking read...")：可重试
+            throw classifyBlockingError(e, "智谱发起生成");
         }
         String taskId = submit.path("id").asText(null);
         String firstUrl = extractDataUrl(submit);
@@ -85,11 +91,13 @@ public class AIimageService {
                         .retrieve()
                         .bodyToMono(JsonNode.class)
                         .block(Duration.ofSeconds(30));
-            } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
-                String body = e.getResponseBodyAsString();
-                log.error("智谱查询结果被拒绝：status={}, body={}", e.getStatusCode(), body);
-                throw new IllegalStateException("智谱查询结果失败(" + e.getStatusCode() + ")："
-                        + (body == null || body.isBlank() ? e.getMessage() : truncate(body, 300)));
+            } catch (WebClientResponseException e) {
+                throw classifyHttpError(e, "智谱查询结果");
+            } catch (WebClientRequestException e) {
+                log.warn("智谱查询结果网络异常：taskId={}", taskId, e);
+                throw new AiImageException("智谱网络连接失败，请稍后重试", true, null, e);
+            } catch (IllegalStateException e) {
+                throw classifyBlockingError(e, "智谱查询结果");
             }
             String status = result.path("task_status").asText("");
             log.info("轮询生成状态：taskId={}, status={}, 响应={}", taskId, status, truncate(result.toString(), 300));
@@ -97,7 +105,8 @@ public class AIimageService {
                 return result.path("data").get(0).path("url").asText();
             }
             if ("FAIL".equalsIgnoreCase(status) || "FAILED".equalsIgnoreCase(status)) {
-                throw new IllegalStateException("AI生成失败:" + result.path("error").asText());
+                // 上游业务失败（审核拒绝/内容违规等），重试无意义
+                throw new AiImageException("AI生成失败:" + result.path("error").asText(), false, null, null);
             }
             // 兜底：若响应里已带 url（部分模型终态直接给图），提前返回
             String url = extractDataUrl(result);
@@ -105,7 +114,48 @@ public class AIimageService {
                 return url;
             }
         }
-        throw new IllegalStateException("AI生成超时(" + timeoutSeconds + "s)");
+        // 轮询超过 timeoutSeconds：任务可能仍在排队，重试可能成功
+        throw new AiImageException("AI生成超时(" + timeoutSeconds + "s)，请稍后重试", true, null, null);
+    }
+
+    /**
+     * 按 HTTP 状态码分类：429 限流 / 5xx 上游故障可重试（429 透传 Retry-After）；
+     * 其余 4xx（400 参数非法、401 Key 错、403 欠费等）立即失败，重试只会放大限流。
+     */
+    private AiImageException classifyHttpError(WebClientResponseException e, String phase) {
+        int status = e.getStatusCode().value();
+        boolean retryable = status == 429 || status >= 500;
+        Long retryAfterMillis = parseRetryAfter(e.getHeaders().getFirst("Retry-After"));
+        String body = e.getResponseBodyAsString();
+        String detail = (body == null || body.isBlank()) ? e.getMessage() : truncate(body, 300);
+        log.warn("{}被拒绝：status={}, retryable={}, body={}", phase, status, retryable, detail);
+        return new AiImageException(phase + "失败(HTTP " + status + ")：" + detail,
+                retryable, retryAfterMillis, e);
+    }
+
+    /** block 超时（消息以 "Timeout on blocking" 开头）判为可重试，其余非法状态原样抛出 */
+    private RuntimeException classifyBlockingError(IllegalStateException e, String phase) {
+        if (e.getMessage() != null && e.getMessage().startsWith("Timeout on blocking")) {
+            log.warn("{}阻塞等待超时", phase);
+            return new AiImageException(phase + "超时，请稍后重试", true, null, e);
+        }
+        return e;
+    }
+
+    /**
+     * 解析 Retry-After：仅支持 delta-seconds 形式（HTTP-date 形式返回 null，由调用方走默认退避）。
+     * 上限夹在 30s，避免上游要求等几分钟时长时间占着生成线程。
+     */
+    private Long parseRetryAfter(String headerValue) {
+        if (headerValue == null || headerValue.isBlank()) {
+            return null;
+        }
+        try {
+            long seconds = Long.parseLong(headerValue.trim());
+            return Math.min(seconds, 30) * 1000L;
+        } catch (NumberFormatException ignore) {
+            return null;
+        }
     }
 
     // 从响应 data[0].url 提取图片 URL，无则返回 null

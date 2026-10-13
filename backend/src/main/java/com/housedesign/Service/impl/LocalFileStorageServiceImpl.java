@@ -23,6 +23,11 @@ import lombok.extern.slf4j.Slf4j;
 @ConditionalOnProperty(name = "app.storage.type", havingValue = "local", matchIfMissing = true)
 public class LocalFileStorageServiceImpl extends AbstractFileStorageService {
 
+    public LocalFileStorageServiceImpl(
+            @Value("${app.storage.max-download-bytes:20971520}") long maxDownloadBytes) {
+        super(maxDownloadBytes);
+    }
+
     // 1.从yml读配置，避免硬编码
     @Value("${app.storage.public-base-url}")
     private String publicBaseUrl;

@@ -33,6 +33,11 @@ import lombok.extern.slf4j.Slf4j;
 @ConditionalOnProperty(name = "app.storage.type", havingValue = "oss")
 public class OssFileStorageServiceImpl extends AbstractFileStorageService {
 
+    public OssFileStorageServiceImpl(
+            @Value("${app.storage.max-download-bytes:20971520}") long maxDownloadBytes) {
+        super(maxDownloadBytes);
+    }
+
     @Value("${app.storage.oss.endpoint}")
     private String endpoint;
 

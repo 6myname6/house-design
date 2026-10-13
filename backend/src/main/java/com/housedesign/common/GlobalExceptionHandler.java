@@ -85,13 +85,6 @@ public class GlobalExceptionHandler {
         return Result.error(400, message.isBlank() ? "参数校验失败" : message);
     }
 
-    /** 兜底：未知异常记日志，返回 500，不把内部细节暴露给前端 */
-    @ExceptionHandler(Exception.class)
-    public Result<Void> handleOther(Exception e) {
-        log.error("系统异常", e);
-        return Result.error(500, "服务器内部错误，请稍后重试");
-    }
-
     /**
      * 把校验结果中的字段错误拼成 "字段：原因；字段：原因"。
      * 无明细时返回兜底文案，保证前端一定能收到可读提示。
@@ -109,5 +102,12 @@ public class GlobalExceptionHandler {
     private String formatOneFieldError(FieldError fieldError) {
         String reason = fieldError.getDefaultMessage();
         return fieldError.getField() + "：" + (reason == null ? "输入不合法" : reason);
+    }
+
+    /** 兜底：未知异常记日志，返回 500，不把内部细节暴露给前端 */
+    @ExceptionHandler(Exception.class)
+    public Result<Void> handleOther(Exception e) {
+        log.error("系统异常", e);
+        return Result.error(500, "服务器内部错误，请稍后重试");
     }
 }

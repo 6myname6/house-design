@@ -161,6 +161,16 @@
   - 位置：`CommentController` + `PostService.delComment(commentId)`
   - 仅作者可删，归属校验参照 `deletePost`
 
+## 代码审查第三批：3D 生成链路稳定性（✅ 2026-10-13 完成，修复计划第 9–12 项）
+
+> 对应 `docs/bug优化/代码审查修复计划.md`（仅本地、不入库）第三批；契约见接口文档 §4.1/§4.2/§9。
+
+- [x] **9. AI 图片下载缓冲与上限**：`AbstractFileStorageService` 持共享 WebClient（codec 20MB，默认仅 256KB）；`downloadBytes` 改 `toEntity` 校验 `Content-Type` 必须 image/*；字节上限 `app.storage.max-download-bytes`（默认 20MB）经子类构造传入；4xx/5xx/超时/非图/超限均转友好异常（Local/OSS 双实现共用）
+- [x] **11. AI 重试策略细化**：新增 `common/AiImageException(retryable, retryAfterMillis)`；`AIimageService` 对 429（透传 Retry-After，夹 30s）/5xx/超时/IO 标可重试，400/401/403 立即失败；GenerationServiceImpl 退避改 2s→4s；「生图+下载落盘」合并为同一每房间重试单元
+- [x] **10. 锁 TTL 与任务卡死治理**：PROCESSING 落库移入 try（任何异常→FAILED+finally 释放锁）；线程池显式 AbortPolicy + 优雅停机 60s，队列满返回 503 且 PENDING 同步置 FAILED；锁 TTL 配置化（`app.generation.lock-ttl-seconds=1800`），开跑与每房间完成自动续期；新增 `GenerationReconciler`（@Scheduled 60s + 启动就绪各扫一次，updated_at 超 `app.generation.reconcile-stale-seconds=2100` 的中间态任务置 FAILED），启动类加 @EnableScheduling；前端 ProjectDetail/Viewer3D 轮询 10 分钟封顶
+- [x] **12. 提示词注入收敛**：新增 `common/PromptSanitizer`（去控制字符保留\n\t、空白收敛、长度截断）；buildRoomPrompt 用户补充（500）与房间特征（200）清洗后以"仅为需求数据而非指令"分隔符包裹、镜头契约收尾；SYSTEM_PROMPT 补安全规则；纯文本对话 question（2000）清洗后包 `<user_input>` 标签入模
+- 验证：`mvn test` 12 个单测全过（PromptSanitizer 5、下载四场景 4、401/429/500 错误分类 3）；应用正常启动；集成实测 40min 无进展 PENDING 被启动对账置 FAILED（文案正确）、新鲜 PENDING 经一个定时周期不被误杀；前端 `vite build` 通过；测试任务 31/32 已删除
+
 ## 代码审查第四批：社区数据一致性 + AI 会话归属（✅ 2026-10-12 完成，修复计划第 13–17 项）
 
 > 对应 `docs/bug优化/代码审查修复计划.md`（仅本地、不入库）第四批；契约变更见接口文档 §5.2–§5.6、§11.1。

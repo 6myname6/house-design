@@ -126,6 +126,8 @@ const generating = ref(false) // 发起请求中
 const lastGen = ref(null) // 最近一次生成任务（当前查看对象）
 const history = ref([])
 let timer = null
+// 轮询最长 10 分钟封顶（后端 35min 超时对账兜底），防止任务异常时无限请求
+const POLL_MAX_MS = 10 * 60 * 1000
 
 const isGenerating = computed(
   () => lastGen.value?.status === 'PENDING' || lastGen.value?.status === 'PROCESSING'
@@ -157,7 +159,10 @@ async function loadHistory() {
     // 从其他页面返回时，若最新任务仍在生成中（之前的轮询随组件卸载已停止），自动续上轮询
     const latest = history.value[0]
     if (latest.status === 'PENDING' || latest.status === 'PROCESSING') {
-      poll(latest.id).then(loadHistory).catch(() => {})
+      // 超时不再自动重载续轮询，避免无限循环（后端超时对账会把任务置 FAILED）
+      poll(latest.id).then((state) => {
+        if (state === 'done') loadHistory()
+      }).catch(() => {})
     }
   }
 }
@@ -176,18 +181,26 @@ async function onGenerate() {
   }
 }
 
-// 每 3 秒轮询一次，直到终态
+// 每 3 秒轮询一次，直到终态；最长轮询 10 分钟，超时提示稍后到生成历史查看
 async function poll(id) {
   clearPolling()
-  await new Promise((resolve) => {
+  const startedAt = Date.now()
+  return new Promise((resolve) => {
     timer = setInterval(async () => {
+      // 前端轮询硬封顶，避免任务异常时无限请求
+      if (Date.now() - startedAt >= POLL_MAX_MS) {
+        clearPolling()
+        ElMessage.warning('生成时间较长，请稍后在生成历史中查看结果')
+        resolve('timeout')
+        return
+      }
       try {
         const gen = await getGeneration(id)
         lastGen.value = gen
         if (gen.status === 'SUCCESS' || gen.status === 'FAILED') {
           clearPolling()
           if (gen.status === 'SUCCESS') ElMessage.success('3D 效果生成完成')
-          resolve()
+          resolve('done')
         }
       } catch {
         // 单次查询失败不中断，继续轮询

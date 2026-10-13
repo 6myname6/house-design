@@ -32,6 +32,8 @@ app:
   storage:
     # 存储后端开关（用 STORAGE_TYPE 环境变量切换，仓库默认 local）
     type: ${STORAGE_TYPE:local}
+    # 外部图片（AI 出图临时链接）下载字节上限，默认 20MB（与上传上限对齐，防 OOM）
+    max-download-bytes: ${STORAGE_MAX_DOWNLOAD_BYTES:20971520}
     # —— 本地存储配置（type=local 时使用）——
     location: ./storage
     public-base-url: http://localhost:8080/files
@@ -66,7 +68,14 @@ app:
     chat-timeout-seconds: 60
     vsion-model: glm-4.6v-flash
     memory-ttl-seconds: 86400
-  
+
+  # 生成任务并发锁与超时对账
+  generation:
+    # 同项目"生成中"Redis 占位 TTL（秒）；任务开跑与每完成一个房间自动续期
+    lock-ttl-seconds: ${GENERATION_LOCK_TTL:1800}
+    # 中间态任务超时对账阈值（秒），必须 > lock-ttl；35min 无进展置 FAILED
+    reconcile-stale-seconds: ${GENERATION_RECONCILE_STALE:2100}
+
   sms:
     code-ttl-seconds: 300
     resend-interval-seconds: 60

@@ -140,10 +140,13 @@ const mapOpen = ref(true)
 const showHint = ref(false)
 const driftDirection = ref('right')
 const imgError = ref(false)
+const pollTimeout = ref(false) // 轮询超过 10 分钟封顶
 const mouse = ref({ x: 0, y: 0 })
 
 let timer = null
 let hintTimer = null
+// 轮询最长 10 分钟封顶（后端 35min 超时对账兜底），防止任务异常时无限请求
+const POLL_MAX_MS = 10 * 60 * 1000
 
 const currentRoom = computed(() => {
   if (!scene.value?.rooms) return null
@@ -162,6 +165,7 @@ const pendingText = computed(() =>
 
 const errorText = computed(() => {
   if (imgError.value) return '效果图加载失败，请返回后重试'
+  if (pollTimeout.value) return '生成时间较长，请稍后在生成历史中查看结果'
   if (!gen.value) return ''
   if (gen.value.status === 'FAILED') return gen.value.errorMessage || '生成失败，请重新生成'
   if (gen.value.status !== 'SUCCESS') return ''
@@ -204,10 +208,17 @@ async function load() {
   }
 }
 
-// 每 3 秒轮询至终态（支持直接把 /viewer/:id 发给别人/刷新）
+// 每 3 秒轮询至终态（支持直接把 /viewer/:id 发给别人/刷新）；最长 10 分钟
 function poll() {
   clearPolling()
+  const startedAt = Date.now()
   timer = setInterval(async () => {
+    if (Date.now() - startedAt >= POLL_MAX_MS) {
+      clearPolling()
+      pollTimeout.value = true
+      loading.value = false
+      return
+    }
     try {
       gen.value = await getGeneration(route.params.generationId)
       if (gen.value.status === 'PENDING' || gen.value.status === 'PROCESSING') return

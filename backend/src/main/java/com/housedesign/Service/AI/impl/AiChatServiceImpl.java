@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import com.housedesign.Service.AI.AiChatAssistant;
 import com.housedesign.Service.AI.AiChatService;
 import com.housedesign.common.BusinessException;
+import com.housedesign.common.PromptSanitizer;
 import com.housedesign.common.UserContext;
 import com.housedesign.dto.response.AiChatMemoryResponse;
 
@@ -48,7 +49,11 @@ public class AiChatServiceImpl implements AiChatService {
         }
         try {
             String memoryId = userId + ":" + conversationId;
-            String answer = aiChatAssistant.chat(memoryId, question);
+            // 用结构化标签包裹用户输入并先做清洗，降低提示词注入风险（内容仅作数据，不作指令）
+            String safeQuestion = "<user_input>\n"
+                    + PromptSanitizer.sanitize(question, 2000)
+                    + "\n</user_input>";
+            String answer = aiChatAssistant.chat(memoryId, safeQuestion);
             return new AiChatMemoryResponse(conversationId, answer);
         } catch (RateLimitException | TimeoutException | InternalServerException | UnresolvedModelServerException e) {
             log.warn("AI 文本对话调用失败，conversationId={}", conversationId, e);
