@@ -19,9 +19,8 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 文件存储公共基类：把「存到哪里」无关的逻辑收敛在一处。
  *
- * 子类只负责真正的落库动作（本地磁盘 / 阿里云 OSS），
- * 校验规则、命名规则、远程下载这些"存储介质无关"的部分都放这里，
- * 保证两种后端的行为完全一致（换成 OSS 后上传体验不变）。
+ * 子类只负责真正的落库动作（当前唯一实现为阿里云 OSS），
+ * 校验规则、命名规则、远程下载这些"存储介质无关"的部分都放这里。
  */
 @Slf4j
 public abstract class AbstractFileStorageService implements FileStorageService {
@@ -29,7 +28,7 @@ public abstract class AbstractFileStorageService implements FileStorageService {
     // 白名单：只允许图片扩展名，防止被上传 .js/.html 之类的可执行内容
     protected static final Set<String> ALLOWED_EXTENSIONS = Set.of("jpg", "jpeg", "png", "gif", "webp");
 
-    // 扩展名 -> MIME：本地存储由 Tomcat 按扩展名自动推断，OSS 必须手工塞进 ObjectMetadata，
+    // 扩展名 -> MIME：OSS 必须手工塞进 ObjectMetadata，
     // 否则浏览器拿到 application/octet-stream 会把图片当成附件下载而不是直接显示
     private static final Map<String, String> CONTENT_TYPES = Map.of(
             "jpg", "image/jpeg",

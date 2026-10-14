@@ -1,11 +1,7 @@
 package com.housedesign.Service.impl;
 
 import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -36,7 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 基于智谱视觉模型（LangChain4j ChatModel，glm-4.6v-flash）的户型图识别。
  *
- * 数据流：本地户型图 → base64 DataURL（localhost 智谱云端拉不到）→
+ * 数据流：户型图 OSS 公网 URL（公共读，云端可直接拉取）→
  * 固定 JSON 契约的系统提示 + 图片 → VLM → 剥离代码围栏 → Jackson 反序列化 →
  * 结构校验与规范化（连接双向闭合 / 房间数上限 / bbox 裁剪 / 入口兜底）。
  *
@@ -53,12 +49,6 @@ public class ZhipuFloorPlanAnalysisServiceImpl implements FloorPlanAnalysisServi
 
     @Value("${app.ai.max-rooms:6}")
     private int maxRooms;
-
-    @Value("${app.storage.location:./storage}")
-    private String storageLocation;
-
-    @Value("${app.storage.public-base-url}")
-    private String publicBaseUrl;
 
     @Override
     public FloorPlanResult analyze(DesignProject project) {
@@ -123,28 +113,9 @@ public class ZhipuFloorPlanAnalysisServiceImpl implements FloorPlanAnalysisServi
     }
 
     /**
-     * 本地存储图片读盘转 base64（localhost 地址智谱云端无法访问）；
-     * 公网 URL（OSS）直接交模型下载。
+     * 户型图已统一持久化到 OSS（公共读），直接把公网 URL 交给视觉模型，由模型侧自行下载。
      */
     private ImageContent buildImageContent(String imageUrl) {
-        if (imageUrl.startsWith(publicBaseUrl)) {
-            String relative = imageUrl.substring(publicBaseUrl.length()).replaceFirst("^/", "");
-            Path base = Paths.get(storageLocation).toAbsolutePath().normalize();
-            Path file = base.resolve(relative).normalize();
-            // normalize 后必须仍在存储根目录内，防路径穿越
-            if (!file.startsWith(base)) {
-                throw new IllegalStateException("非法的本地文件路径：" + relative);
-            }
-            try {
-                byte[] bytes = Files.readAllBytes(file);
-                String mime = mimeFromFileName(file.getFileName().toString());
-                return ImageContent.from(Base64.getEncoder().encodeToString(bytes), mime);
-            } catch (Exception e) {
-                log.error("读取本地户型图失败：{}", file, e);
-                throw new IllegalStateException("读取本地户型图失败：" + relative, e);
-            }
-        }
-        // OSS 等公网地址：要求公网可达（公共读或有效签名 URL）
         return ImageContent.from(URI.create(imageUrl));
     }
 
@@ -290,21 +261,6 @@ public class ZhipuFloorPlanAnalysisServiceImpl implements FloorPlanAnalysisServi
             }
         }
         return s;
-    }
-
-    private String mimeFromFileName(String fileName) {
-        String lower = fileName.toLowerCase();
-        if (lower.endsWith(".png")) {
-            return "image/png";
-        }
-        if (lower.endsWith(".gif")) {
-            return "image/gif";
-        }
-        if (lower.endsWith(".webp")) {
-            return "image/webp";
-        }
-        // jpg/jpeg 及其它情况统一按 jpeg（户型图上传白名单仅这五类）
-        return "image/jpeg";
     }
 
     private String safeMessage(Exception e) {

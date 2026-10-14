@@ -2,6 +2,7 @@ package com.housedesign.common;
 
 import java.util.stream.Collectors;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.BindingResult;
@@ -9,8 +10,10 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
@@ -104,7 +107,20 @@ public class GlobalExceptionHandler {
         return fieldError.getField() + "：" + (reason == null ? "输入不合法" : reason);
     }
 
-    /** 兜底：未知异常记日志，返回 500，不把内部细节暴露给前端 */
+    /**
+     * 请求的资源或路径不存在：返回标准 404，而非落入 500。
+     * 用 warn 即可，避免缺失资源这类常见情况刷成 error 日志。
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Result<Void> handleNoResourceFound(NoResourceFoundException e) {
+        log.warn("资源不存在：{}", e.getResourcePath());
+        return Result.error(404, "资源不存在");
+    }
+
+    /**
+     * 兜底：未知异常记日志，返回 500，不把内部细节暴露给前端
+     */
     @ExceptionHandler(Exception.class)
     public Result<Void> handleOther(Exception e) {
         log.error("系统异常", e);

@@ -26,7 +26,7 @@ public class OpenApiConfig {
                         .title("筑梦家 HouseDesign API")
                         .description("房屋装修效果可视化平台后端接口文档")
                         .version("1.0.0"))
-                // 全局声明需要 Bearer Token（登录/注册、/files/** 除外）
+                // 全局声明需要 Bearer Token（登录/注册等免鉴权接口除外）
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME))
                 .components(new Components()
                         .addSecuritySchemes(SECURITY_SCHEME, new SecurityScheme()

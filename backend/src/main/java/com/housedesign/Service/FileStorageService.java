@@ -5,10 +5,8 @@ import org.springframework.web.multipart.MultipartFile;
 /**
  * FileStorageService —— 文件存储抽象。
  *
- * 由 app.storage.type 决定具体实现：
- *   local（默认）-> LocalFileStorageServiceImpl，落在 ./storage 并走 /files/** 对外
- *   oss          -> OssFileStorageServiceImpl，上传到阿里云 OSS
- * 两者返回值都是可直接访问的公网/本机 URL，调用方无需关心底层介质。
+ * 当前唯一实现为 {@code OssFileStorageServiceImpl}：文件上传到阿里云 OSS，
+ * 返回可直接访问的公网 URL，调用方无需关心底层介质。
  */
 public interface FileStorageService {
     /*

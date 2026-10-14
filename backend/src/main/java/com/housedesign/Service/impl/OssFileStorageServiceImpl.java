@@ -4,7 +4,6 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -20,17 +19,17 @@ import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 阿里云 OSS 存储实现（type=oss 时装配）。
+ * 阿里云 OSS 存储实现（系统唯一的文件存储后端，无条件装配）。
  *
- * 与本地实现的差别：文件不再落在服务器磁盘，而是 putObject 到 Bucket，
+ * 文件不落服务器磁盘，而是 putObject 到 Bucket，
  * 返回 https://{bucket}.{endpoint}/{dir}/{uuid}.{ext} 这样的公网地址。
- * 好处是多实例部署时不用共享磁盘/做 NFS，且图片走 CDN、不占应用服务器带宽。
+ * 多实例部署无需共享磁盘，图片可走 CDN、不占应用服务器带宽。
  *
- * 开关：STORAGE_TYPE=oss（环境变量），密钥 OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET。
+ * 密钥通过环境变量 OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET 注入；
+ * 缺失时在启动期 fail-fast，绝不静默退化为本地磁盘存储。
  */
 @Service
 @Slf4j
-@ConditionalOnProperty(name = "app.storage.type", havingValue = "oss")
 public class OssFileStorageServiceImpl extends AbstractFileStorageService {
 
     public OssFileStorageServiceImpl(
@@ -63,7 +62,7 @@ public class OssFileStorageServiceImpl extends AbstractFileStorageService {
     void init() {
         if (!StringUtils.hasText(accessKeyId) || !StringUtils.hasText(accessKeySecret)) {
             throw new IllegalStateException(
-                    "storage.type=oss 但缺少密钥，请注入环境变量 OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET");
+                    "缺少 OSS 密钥，请注入环境变量 OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET");
         }
         ossClient = new OSSClientBuilder().build(endpoint, accessKeyId, accessKeySecret);
         log.info("OSS 存储已启用：endpoint={}, bucket={}", endpoint, bucket);
@@ -80,7 +79,7 @@ public class OssFileStorageServiceImpl extends AbstractFileStorageService {
 
     @Override
     public String upload(MultipartFile file, String dir) {
-        // 1.校验扩展名 + UUID 重命名（复用基类规则，与本地存储行为一致）
+        // 1.校验扩展名 + UUID 重命名（复用基类规则）
         String original = file.getOriginalFilename();
         String storedName = buildStoredName(original);
         // 2.Object Key：OSS 里没有"目录"，dir/ 只是 key 的前缀，控制台会按 / 展示成文件夹
