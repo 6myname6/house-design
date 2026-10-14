@@ -14,6 +14,8 @@ frontend/.vite/
 .vscode/
 *.iml
 .workbuddy/
+# Trae 本地技能/个人配置，不提交
+.trae/
 
 # OS
 .DS_Store
