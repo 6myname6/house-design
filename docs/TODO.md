@@ -165,7 +165,7 @@
 
 > 对应 `docs/bug优化/代码审查修复计划.md`（仅本地、不入库）第三批；契约见接口文档 §4.1/§4.2/§9。
 
-- [x] **9. AI 图片下载缓冲与上限**：`AbstractFileStorageService` 持共享 WebClient（codec 20MB，默认仅 256KB）；`downloadBytes` 改 `toEntity` 校验 `Content-Type` 必须 image/*；字节上限 `app.storage.max-download-bytes`（默认 20MB）经子类构造传入；4xx/5xx/超时/非图/超限均转友好异常（Local/OSS 双实现共用）
+- [x] **9. AI 图片下载缓冲与上限**：`AbstractFileStorageService` 持共享 WebClient（codec 20MB，默认仅 256KB）；`downloadBytes` 改 `toEntity` 校验 `Content-Type` 必须 image/*；字节上限 `app.storage.max-download-bytes`（默认 20MB）经子类构造传入；4xx/5xx/超时/非图/超限均转友好异常（存储基类统一逻辑，现为唯一 OSS 实现复用）
 - [x] **11. AI 重试策略细化**：新增 `common/AiImageException(retryable, retryAfterMillis)`；`AIimageService` 对 429（透传 Retry-After，夹 30s）/5xx/超时/IO 标可重试，400/401/403 立即失败；GenerationServiceImpl 退避改 2s→4s；「生图+下载落盘」合并为同一每房间重试单元
 - [x] **10. 锁 TTL 与任务卡死治理**：PROCESSING 落库移入 try（任何异常→FAILED+finally 释放锁）；线程池显式 AbortPolicy + 优雅停机 60s，队列满返回 503 且 PENDING 同步置 FAILED；锁 TTL 配置化（`app.generation.lock-ttl-seconds=1800`），开跑与每房间完成自动续期；新增 `GenerationReconciler`（@Scheduled 60s + 启动就绪各扫一次，updated_at 超 `app.generation.reconcile-stale-seconds=2100` 的中间态任务置 FAILED），启动类加 @EnableScheduling；前端 ProjectDetail/Viewer3D 轮询 10 分钟封顶
 - [x] **12. 提示词注入收敛**：新增 `common/PromptSanitizer`（去控制字符保留\n\t、空白收敛、长度截断）；buildRoomPrompt 用户补充（500）与房间特征（200）清洗后以"仅为需求数据而非指令"分隔符包裹、镜头契约收尾；SYSTEM_PROMPT 补安全规则；纯文本对话 question（2000）清洗后包 `<user_input>` 标签入模
@@ -225,7 +225,7 @@
 - [x] 1. **配置修正**：`application.yml` — `app.ai.image-model` 改为 `${AI_IMAGE_MODEL:cogview-3-flash}`（原误配视觉模型名）；新增 `app.ai.room-image-size: 1440x720`、`app.ai.max-rooms: 6`；视觉模型复用 `langchain4j.open-ai.chat-model`（glm-4.6v-flash）
 - [x] 2. **AIimageService 参数化**：`generateImageUrl(prompt, size)` 重载，size 从配置注入（单参签名默认走配置宽幅）；Maven compile 通过
 - [x] 3. **户型识别 DTO**：`dto/ai/FloorPlanResult`、`RoomPlan`（id/name/approxArea/features/connects/doorSides/bbox）、`RoomBBox`（x/y/w/h）
-- [x] 4. **FloorPlanAnalysisService + ZhipuFloorPlanAnalysisServiceImpl**：注入 LangChain4j `ChatModel`（SystemMessage 固定 JSON 契约 + UserMessage(TextContent+ImageContent)）；local 存储读盘 base64（从 designImageUrl 的 /files/ 前缀解析相对路径，normalize+startsWith 防穿越），公网 URL 走 ImageContent.from(URI)；剥离 ```json 围栏后 Jackson 反序列化；校验规范化（id 蛇形唯一/connects 去噪+双向闭合/doorSides 对齐/bbox 裁剪/房间数截断/entryRoomId 兜底）
+- [x] 4. **FloorPlanAnalysisService + ZhipuFloorPlanAnalysisServiceImpl**：注入 LangChain4j `ChatModel`（SystemMessage 固定 JSON 契约 + UserMessage(TextContent+ImageContent)）；户型图为 OSS 公网 URL，直接 `ImageContent.from(URI)` 交模型下载（2026-10-14 存储强制 OSS 后，原 local 读盘 base64 分支已移除）；剥离 ```json 围栏后 Jackson 反序列化；校验规范化（id 蛇形唯一/connects 去噪+双向闭合/doorSides 对齐/bbox 裁剪/房间数截断/entryRoomId 兜底）
 - [x] 5. **sceneConfig v2 组装 DTO**：`dto/scene/PhotoTourScene`、`RoomScene`、`Hotspot`；doorSide → x 规则化（left .24 / center .50 / right .76，y=.66，同方位多门错位错开）
 - [x] 6. **GenerationServiceImpl.runGeneration 重构**：识别重试 1 次 → FAILED 友好提示；逐房间串行生图+落 `panoramas/`，单间重试 1 次仍败整套 FAILED（注明房间名）；组装 PhotoTourScene 写 sceneConfig，入口房间图写 panorama/preview；**顺带修复旧 bug：成功路径漏 updateById 导致 SUCCESS 不落库**
 - [x] 7. **防并发（G-4 后端兜底）**：同项目存在 PENDING/PROCESSING 任务 → BusinessException(409,「该项目正在生成中，请等待当前任务完成」)
@@ -283,5 +283,5 @@
 
 - [ ] **项目列表分页**（§3.2）
 - [ ] **帖子搜索/筛选**（按内容/标签）
-- [x] **对象存储（阿里云 OSS）**：`FileStorageService` 抽象 + 模板方法基类 `AbstractFileStorageService`（校验/命名/MIME/远程下载），Local 与 OSS 双实现按 `app.storage.type`（local/oss）条件装配；OSS 实现单例 `OSSClient`（@PostConstruct fail-fast + @PreDestroy 关连接池）、显式 Content-Type 与一年缓存头。2026-09-20 实测：oss 上传匿名 200、响应头正确、MD5 一致；local 回退正常
-- [ ] **CDN 加速域名**：OSS 已通，后续在其前面挂 CDN，仅需替换 public-base-url
+- [x] **对象存储（阿里云 OSS，唯一存储后端）**：`FileStorageService` 抽象 + 模板方法基类 `AbstractFileStorageService`（校验/命名/MIME/远程下载），唯一实现 `OssFileStorageServiceImpl` 无条件装配；单例 `OSSClient`（@PostConstruct fail-fast + @PreDestroy 关连接池）、显式 Content-Type 与一年缓存头。本地磁盘实现与 `/files/**` 静态映射已移除，密钥缺失即启动失败。2026-10-14：历史本地文件（84 个）已一次性迁移至 OSS 并改写数据库 URL；实测上传/公网读 200
+- [ ] **CDN 加速域名**：OSS 已通，后续在其前面挂 CDN，仅需替换 `app.storage.oss.public-base-url`
