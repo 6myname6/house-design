@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
-import { getToken, removeToken } from '../utils/storage'
+import { getToken, isTokenValid, removeToken } from '../utils/storage'
 import { useAiChatStore } from '../stores/aiChat'
 import router from '../router'
 
@@ -14,7 +14,12 @@ const request = axios.create({
 request.interceptors.request.use((config) => {
   const token = getToken()
   if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+    // 本地已过期/损坏：清掉凭证且不再发送，让请求自然走 401 统一出口
+    if (!isTokenValid(token)) {
+      removeToken()
+    } else {
+      config.headers.Authorization = `Bearer ${token}`
+    }
   }
   return config
 })

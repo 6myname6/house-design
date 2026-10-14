@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { getToken } from '../utils/storage'
+import { getToken, isTokenValid, removeToken } from '../utils/storage'
 
 const routes = [
   {
@@ -67,12 +67,15 @@ const router = createRouter({
   routes
 })
 
-// 登录守卫：非公开页面无 token 一律跳登录页
+// 登录守卫：非公开页面必须携带「未过期」的 token，否则一律跳登录页
 router.beforeEach((to) => {
   if (to.meta.public) {
     return true
   }
-  if (!getToken()) {
+  const token = getToken()
+  // 无 token，或 token 已过期/损坏：清掉残留凭证后跳登录（过期场景额外清理）
+  if (!token || !isTokenValid(token)) {
+    if (token) removeToken()
     return { path: '/login', query: { redirect: to.fullPath } }
   }
   return true
