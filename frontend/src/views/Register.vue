@@ -25,11 +25,18 @@
         <h2 class="panel-title">注 册</h2>
 
         <el-form :model="form" :rules="rules" ref="formRef" size="large" class="auth-form" @submit.prevent="onSubmit">
+          <el-radio-group v-model="regType" class="reg-switch" @change="onRegTypeChange">
+            <el-radio-button label="phone">手机注册</el-radio-button>
+            <el-radio-button label="email">邮箱注册</el-radio-button>
+          </el-radio-group>
           <el-form-item prop="username">
             <el-input v-model="form.username" placeholder="用户名（3-32 个字符）" maxlength="32" autocomplete="username" />
           </el-form-item>
-          <el-form-item prop="phone">
+          <el-form-item v-if="regType === 'phone'" prop="phone">
             <el-input v-model="form.phone" placeholder="手机号" maxlength="11" autocomplete="tel" />
+          </el-form-item>
+          <el-form-item v-else prop="email">
+            <el-input v-model="form.email" placeholder="邮箱" maxlength="128" autocomplete="email" />
           </el-form-item>
           <el-form-item prop="code">
             <div class="code-row">
@@ -83,7 +90,7 @@ import { ref, reactive, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '../stores/user'
-import { sendSmsCodeApi } from '../api/auth'
+import { sendSmsCodeApi, sendEmailCodeApi } from '../api/auth'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -91,7 +98,11 @@ const userStore = useUserStore()
 const loading = ref(false)
 const formRef = ref(null)
 
-const form = reactive({ username: '', phone: '', code: '', password: '', confirm: '' })
+// 注册通道：phone=手机注册（短信验证码），email=邮箱注册（邮件验证码）
+const regType = ref('phone')
+const EMAIL_PATTERN = /^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
+
+const form = reactive({ username: '', phone: '', email: '', code: '', password: '', confirm: '' })
 
 const rules = {
   username: [
@@ -101,6 +112,10 @@ const rules = {
   phone: [
     { required: true, message: '请输入手机号', trigger: 'blur' },
     { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确', trigger: 'blur' }
+  ],
+  email: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
+    { pattern: EMAIL_PATTERN, message: '邮箱格式不正确', trigger: 'blur' }
   ],
   code: [
     { required: true, message: '请输入验证码', trigger: 'blur' },
@@ -124,18 +139,33 @@ const countdown = ref(0)
 const codeSending = ref(false)
 let countdownTimer = null
 
+// 切换注册通道：清空验证码与倒计时，避免把手机码当邮箱码提交
+function onRegTypeChange() {
+  form.code = ''
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+  countdown.value = 0
+}
+
 async function onSendCode() {
   if (codeSending.value || countdown.value > 0) return
-  // 发码前只校验手机号
+  // 发码前只校验当前通道的标识字段
   try {
-    await formRef.value.validateField('phone')
+    await formRef.value.validateField(regType.value)
   } catch {
     return
   }
   codeSending.value = true
   try {
-    await sendSmsCodeApi({ phone: form.phone, scene: 'register' })
-    ElMessage.success('验证码已发送，请查收（Mock 环境请看后端日志）')
+    if (regType.value === 'phone') {
+      await sendSmsCodeApi({ phone: form.phone, scene: 'register' })
+      ElMessage.success('验证码已发送，请查收（Mock 环境请看后端日志）')
+    } else {
+      await sendEmailCodeApi({ email: form.email, scene: 'register' })
+      ElMessage.success('验证码已发送，请查收邮箱')
+    }
     countdown.value = 60
     countdownTimer = setInterval(() => {
       countdown.value -= 1
@@ -161,7 +191,15 @@ async function onSubmit() {
   loading.value = true
   try {
     await formRef.value.validate()
-    await userStore.register(form.username, form.password, form.phone, form.code)
+    // 手机/邮箱二选一：只提交当前通道的标识，另一个为 undefined（JSON 序列化时自动省略）
+    const payload = {
+      username: form.username,
+      password: form.password,
+      code: form.code,
+      phone: regType.value === 'phone' ? form.phone : undefined,
+      email: regType.value === 'email' ? form.email : undefined
+    }
+    await userStore.register(payload)
     ElMessage.success('注册成功，已自动登录')
     router.push('/projects')
   } catch {
@@ -264,6 +302,13 @@ async function onSubmit() {
   color: var(--hd-ink);
 }
 .auth-form :deep(.el-form-item) { margin-bottom: 22px; }
+.reg-switch {
+  width: 100%;
+  margin-bottom: 22px;
+  display: flex;
+}
+.reg-switch :deep(.el-radio-button) { flex: 1; }
+.reg-switch :deep(.el-radio-button__inner) { width: 100%; }
 
 .code-row {
   display: flex;

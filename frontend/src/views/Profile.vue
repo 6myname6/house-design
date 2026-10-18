@@ -13,6 +13,16 @@
         <ul class="meta-list">
           <li><span class="label">用户名</span>{{ userStore.userInfo?.username }}</li>
           <li><span class="label">昵称</span>{{ userStore.userInfo?.nickname || '-' }}</li>
+          <li><span class="label">手机号</span>
+            <span :class="{ 'meta-empty': !userStore.userInfo?.maskedPhone }">
+              {{ userStore.userInfo?.maskedPhone || '未绑定' }}
+            </span>
+          </li>
+          <li><span class="label">邮箱</span>
+            <span :class="{ 'meta-empty': !userStore.userInfo?.maskedEmail }">
+              {{ userStore.userInfo?.maskedEmail || '未绑定' }}
+            </span>
+          </li>
           <li><span class="label">ID</span>{{ userStore.userInfo?.id }}</li>
         </ul>
       </div>
@@ -55,6 +65,14 @@
         <el-button plain :loading="loadingMore" @click="loadMore">加载更多</el-button>
       </div>
     </section>
+
+    <!-- 账号设置入口 -->
+    <div class="setting-list">
+      <router-link to="/settings" class="setting-link">
+        <span class="setting-label">账号设置 · 邮箱绑定 / 修改密码</span>
+        <span class="setting-arrow" aria-hidden="true">→</span>
+      </router-link>
+    </div>
 
     <!-- 退出登录（页面最下方） -->
     <el-button type="danger" plain class="logout" @click="onLogout">退出登录</el-button>
@@ -250,6 +268,10 @@ function formatTime(t) {
   color: var(--hd-neutral-400);
   margin-right: 6px;
 }
+/* 未绑定态：更浅的灰色，弱化"未绑定"文本 */
+.meta-empty {
+  color: var(--hd-neutral-400);
+}
 
 /* 我的发布 */
 .my-posts {
@@ -315,7 +337,37 @@ function formatTime(t) {
   min-height: 120px;
 }
 
-/* 退出登录 */
+/* 账号设置入口 */
+.setting-list {
+  margin-top: var(--hd-space-4);
+  border-top: var(--hd-hairline);
+}
+.setting-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--hd-space-2) 4px;
+  border-bottom: var(--hd-hairline);
+  color: var(--hd-ink);
+  text-decoration: none;
+  font-size: var(--hd-text-body);
+  letter-spacing: 0.05em;
+  transition: color var(--hd-duration-fast) ease-out;
+}
+.setting-link:hover {
+  color: var(--hd-primary-700);
+}
+.setting-link:hover .setting-arrow {
+  transform: translateX(3px);
+}
+.setting-arrow {
+  color: var(--hd-neutral-400);
+  transition: transform var(--hd-duration-fast) ease-out, color var(--hd-duration-fast) ease-out;
+}
+.setting-link:hover .setting-arrow {
+  color: var(--hd-primary-700);
+}
+
 .logout {
   width: 100%;
   margin-top: var(--hd-space-3);

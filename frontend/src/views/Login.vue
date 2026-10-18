@@ -69,6 +69,30 @@
               </el-button>
             </el-form>
           </el-tab-pane>
+
+          <el-tab-pane label="邮箱登录" name="email">
+            <el-form :model="emailForm" :rules="emailRules" ref="emailFormRef" size="large" class="auth-form" @submit.prevent="onEmailSubmit">
+              <el-form-item prop="email">
+                <el-input v-model="emailForm.email" placeholder="邮箱" maxlength="128" autocomplete="email" />
+              </el-form-item>
+              <el-form-item prop="code">
+                <div class="code-row">
+                  <el-input
+                    v-model="emailForm.code"
+                    placeholder="6 位验证码"
+                    maxlength="6"
+                    inputmode="numeric"
+                  />
+                  <el-button class="code-btn" :disabled="emailCountdown > 0 || emailCodeSending" :loading="emailCodeSending" @click="onSendEmailCode">
+                    {{ emailCountdown > 0 ? `${emailCountdown}s 后重发` : '获取验证码' }}
+                  </el-button>
+                </div>
+              </el-form-item>
+              <el-button type="primary" native-type="submit" class="submit" :loading="emailLoading">
+                进 入
+              </el-button>
+            </el-form>
+          </el-tab-pane>
         </el-tabs>
 
         <p class="switch-line">
@@ -85,7 +109,7 @@ import { ref, reactive, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '../stores/user'
-import { sendSmsCodeApi } from '../api/auth'
+import { sendSmsCodeApi, sendEmailCodeApi } from '../api/auth'
 
 const router = useRouter()
 const route = useRoute()
@@ -181,9 +205,74 @@ async function onPhoneSubmit() {
   }
 }
 
+// ---- 邮箱验证码登录（A-11，与手机登录对称）----
+const EMAIL_PATTERN = /^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
+const emailLoading = ref(false)
+const emailFormRef = ref(null)
+const emailForm = reactive({ email: '', code: '' })
+
+const emailRules = {
+  email: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
+    { pattern: EMAIL_PATTERN, message: '邮箱格式不正确', trigger: 'blur' }
+  ],
+  code: [
+    { required: true, message: '请输入验证码', trigger: 'blur' },
+    { pattern: /^\d{6}$/, message: '请输入 6 位数字验证码', trigger: 'blur' }
+  ]
+}
+
+const emailCountdown = ref(0)
+const emailCodeSending = ref(false)
+let emailCountdownTimer = null
+
+async function onSendEmailCode() {
+  if (emailCodeSending.value || emailCountdown.value > 0) return
+  try {
+    await emailFormRef.value.validateField('email')
+  } catch {
+    return
+  }
+  emailCodeSending.value = true
+  try {
+    await sendEmailCodeApi({ email: emailForm.email, scene: 'login' })
+    ElMessage.success('验证码已发送，请查收邮箱')
+    emailCountdown.value = 60
+    emailCountdownTimer = setInterval(() => {
+      emailCountdown.value -= 1
+      if (emailCountdown.value <= 0) {
+        clearInterval(emailCountdownTimer)
+        emailCountdownTimer = null
+      }
+    }, 1000)
+  } catch {
+    // 发送失败：拦截器已统一提示，不启动倒计时，允许重试
+  } finally {
+    emailCodeSending.value = false
+  }
+}
+
+async function onEmailSubmit() {
+  if (emailLoading.value) return
+  emailLoading.value = true
+  try {
+    await emailFormRef.value.validate()
+    await userStore.loginByEmail(emailForm.email, emailForm.code)
+    ElMessage.success('登录成功')
+    router.push(route.query.redirect || '/projects')
+  } catch {
+    // 校验失败或请求失败：请求拦截器已统一弹错误提示
+  } finally {
+    emailLoading.value = false
+  }
+}
+
 onUnmounted(() => {
   if (countdownTimer) {
     clearInterval(countdownTimer)
+  }
+  if (emailCountdownTimer) {
+    clearInterval(emailCountdownTimer)
   }
 })
 </script>

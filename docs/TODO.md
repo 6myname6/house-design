@@ -1,5 +1,21 @@
 # 筑梦家 · 待办清单
 
+## 开发进度（里程碑）
+
+> 代码按里程碑小步提交，每阶段可独立验证；本节由 README 迁入，README 只保留项目门面（是什么 / 技术栈 / 怎么跑起来）。
+
+| 阶段 | 内容 | 状态 |
+| --- | --- | --- |
+| P0 | 环境搭建 + 基线功能验证 | 完成 |
+| P1 | 后端地基（工程骨架 / 统一响应 / 实体建表 / JWT / 配置） | 完成 |
+| P2 | 认证 + 文件上传模块（含 Redis 登录限流、手机验证码登录） | 完成 |
+| P3 | 项目 CRUD + 社区模块（发帖/评论/点赞/楼中楼） | 完成 |
+| P4 | AI 生成链路（直连智谱 CogView，异步 + 轮询 + 阿里云 OSS 持久化） | 完成 |
+| P5 | Vue3 前端（登录/项目/小圈/我的/详情+生成，网页端布局） | 进行中 |
+| P5.1 | 杂志风 UI 重构（编辑杂志·建筑工作室设计体系，需求 N-9） | 进行中（基础层+导航/首页/登录标杆页已完成，6 页迁移中） |
+| P5.5 | AI 设计助手（LangChain4j + glm-4.6v-flash，图文理解对话） | 已上线（纯文本拒答遵循等待强化提示词） |
+| P6 | 社区完善 + 打包部署 | 待开始 |
+
 ## 杂志风 UI 重构（编辑杂志 · 建筑工作室，🚧 进行中）
 
 > 目标：全站统一为「编辑杂志 / 建筑工作室」视觉语言——纸感米白底、墨黑文字、克制陶土点睛、宋体展示标题、等宽图纸标注、细发线分层、3-4px 收小圆角、去厚重阴影。纯视觉重构，**不改任何脚本逻辑与接口契约**。
@@ -99,6 +115,63 @@
   - 同期加固：60s 频控由"hasKey+set 两步"改为 `setIfAbsent` 原子占位（key 修正为 `sms:limit:login:{phone}`）；Lua 原子计数器抽为公共组件 `common/RedisAtomicCounter`（登录/IP/短信/日上限共用）；`send()` 异常时删除 60s 占位允许立即重试（方案 B 的轻量版，code key 不删，300s 后自然过期且会被重发覆盖）。
 
 > 另：key 建议补"业务场景"段（`sms:code:login:{phone}` / `sms:code:reset:{phone}`），避免以后 A-6 找回密码与登录验证码互相覆盖/越场重放——此项未列入本清单，可视情况提前做。
+
+## 账号设置 · 邮箱绑定与换绑（§10.8，2026-10-17，✅ 已完成并实测通过）
+
+> 契约：接口文档 §1.12/§1.13；Settings.vue 升级为「账号设置」：联系方式卡片（手机只读展示、按钮置灰；邮箱绑定/换绑弹窗）+ 修改密码卡片。
+> 后端：`EmailBindService`（`bind:email:*` 独立 key、新邮箱两次占用校验 + uk_email 兜底、错 5 次锁、60s/日限 10）、两 DTO、PersonalController 两端点。
+> 实测（id=54 手机用户）：未鉴权 401；占用邮箱/格式错误发码 400；新邮箱真实收信；60s 429；错码 400×4→429；重新发码清零后正确码绑定成功（message「邮箱绑定成功」）；/me 掩码即时变为 3***@qq.com；同码二次使用 400；绑定后邮箱验证码登录 200；UI（手机禁用、未绑定态、弹窗格式校验、改密通道联动）全部通过。测试后 id=54 已还原 email=NULL。
+
+## 修改密码（A-5，2026-10-17，✅ 已完成并实测通过）
+
+> 需求：§10.7；契约：接口文档 §1.10/§1.11，§1.5 /me 新增 maskedPhone/maskedEmail。
+> 方案：已登录用户凭本人绑定手机/邮箱验证码改密（不收前端传的手机号/邮箱，后端按 userId 查库）；`pwd:*` 独立 key 场景隔离；错 5 次锁 300s；成功拉黑当前 token 强制重登。
+> 后端：`PasswordChangeService`（发码+改密）+ 两个 DTO + PersonalController 两端点 + `/me` 掩码字段；前端：Settings.vue 改密卡片（通道按绑定情况展示、60s 倒计时、成功后清登录态跳登录）；入口在「我的」页 Profile.vue（退出按钮上方「账号设置 · 修改密码」→ /settings）。
+>
+> **实测记录（2026-10-17，账号 id=53 邮箱用户）**：
+> - `/me` 返回 `maskedPhone=null`、`maskedEmail=3***@qq.com`；未鉴权调发码 401；选未绑定的 sms 通道 400「当前账号未绑定手机」
+> - 邮箱发码成功（QQ 真实收信），60s 内重发 429 带剩余秒数；错码 400×4 → 第 5 次 429 锁定；锁定后重新发码清零 fail 计数（随后改密成功反证）
+> - 正确码改密 200 → 旧 token 下一请求 401（拉黑即时生效）→ 旧密码登录 400 → 新密码登录 200
+> - 前端 Settings 页：单通道用户只显示邮箱单选项、三类表单校验提示、发码倒计时均正常；`vite build` 通过
+> - 测试结束账号密码已恢复原值
+
+## 邮箱注册与验证码登录（2026-10-15 启动，✅ 2026-10-17 完成并实测通过）
+
+> 需求：A-11（需求文档 §10.6）——个人认证拿不到短信签名资质（运营商 2025-06 报备政策），邮箱 SMTP 免费无资质，作为真实可用的注册/登录通道；与手机链路完全对称并存。
+> 契约：接口文档 §1.1（注册手机/邮箱二选一）、§1.8（发邮箱验证码）、§1.9（邮箱验证码登录）。
+> 写码方式：**后端由用户亲手实现（SMTP 为新技术，助手先讲概念再给关键片段并审查）；前端由助手直接实现**。
+
+### 后端（学习模式，小步切片）
+
+- [x] 1. **pom**：引入 `spring-boot-starter-mail`（版本随 Boot parent 管理，不写版本号）
+- [x] 2. **配置外置**：`application.yml` 加 `spring.mail.*`（host/port 默认 smtp.qq.com:465 SSL，username/password 走 `MAIL_USERNAME/MAIL_PASSWORD`，本地默认空）+ `app.email.*`（300/60/10/20/86400）；`application-prod.yml` 加无默认值 `${MAIL_USERNAME}` / `${MAIL_PASSWORD}`
+- [~] 3. **schema 变更**：建表 SQL 与 User 实体已加 `email` + `uk_email`；**存量本地库的 ALTER 待执行（MySQL 启动后执行，见下）**
+- [x] 4. **邮件通道**：`EmailService` 接口 + `EmailServiceImpl`（`JavaMailSender` + `MimeMessageHelper` HTML 邮件 UTF-8，超时 5s；未配置/发信失败转 503；日志邮箱掩码）
+- [x] 5. **验证码组件** `common/EmailCodeService`（独立 `email:*` 前缀、scene 预检、SETNX 60s、日限 10/20、发信失败删占位）；`LoginRateLimiter` 新增 `checkCodeLocked/recordCodeFailure/clearCodeFailure` 通用方法（阈值复用 maxVerifyFailCount，sms 旧方法不动）
+- [x] 6. **DTO**：`EmailCodeRequest`、`EmailLoginRequest`（邮箱正则+128 长度）；`RegisterRequest` phone/email 均可空、格式注解，XOR 校验在 Service 层
+- [x] 7. **LoginService**：`register` 按 phone/email 二选一分流（占用预检 + 唯一索引并发兜底）；`loginByEmail`（验码 → 查邮箱 → 签 JWT，不负责建档）
+- [x] 8. **Controller / 白名单**：`POST /api/auth/email/code`、`POST /api/auth/email/login`；WebConfig 放行
+- [x] **编译验证**：`mvn compile` 通过（2026-10-17）
+- [x] 9. **本地实测**（2026-10-17，QQ 邮箱 3586425471@qq.com 真实收信）：
+  - 发信成功；Redis 核对 `email:code` TTL≈300s、`email:limit` TTL 60s、`email:daily:*` 计数正确
+  - 邮箱注册（id=53，phone=NULL/email 落库/BCrypt 60 位）→ 邮箱验证码登录签 JWT（sub=53）→ 同码重放 400（一次性）
+  - XOR 二选一 400；scene 预检双向（register 已注册 / login 未注册）均 400；错码 5 次锁定（400×4→429）；60s SETNX 频控 429 带剩余秒数
+  - 手机链路回归无影响：手机注册（id=54，email=NULL）+ 手机验证码登录 JWT（sub=54）正常
+
+> 联调前置均已完成：本地库已执行 ALTER 加 `email` 列与 `uk_email`；`MAIL_USERNAME/MAIL_PASSWORD`（QQ 授权码）配置在用户级环境变量。
+
+### 前端（助手直接实现）
+
+- [x] `api/auth.js`：`sendEmailCodeApi`、`emailLoginApi`
+- [x] `stores/user.js`：`loginByEmail(email, code)`；`register` 改为对象载荷支持手机/邮箱
+- [x] `views/Login.vue`：新增「邮箱登录」Tab（邮箱 + 验证码 + 60s 倒计时，独立定时器与表单状态）
+- [x] `views/Register.vue`：顶部「手机注册 / 邮箱注册」radio 切换，标识项互换、发码按通道分流、切换清空验证码
+- [x] **构建验证**：`vite build` 通过（2026-10-17）
+
+### 技术债（登记，不在本期做）
+
+- [ ] `EmailCodeService` 与 `SmsCodeService` 抽象 `AbstractVerifyCodeService` 模板基类（标识、key 前缀、通道、注册状态查询为子类钩子），消除重复
+- [ ] `LoginRateLimiter` 的 sms* 三方法收敛到通用验证码计数方法
 
 ## AI 多模态对话（2026-09-18，🚧 开发中）
 

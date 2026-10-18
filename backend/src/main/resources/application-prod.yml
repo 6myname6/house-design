@@ -1,0 +1,36 @@
+# 生产环境配置
+# 激活方式：SPRING_PROFILES_ACTIVE=prod（或启动参数 --spring.profiles.active=prod）
+# 原则一：密钥/口令一律写成无默认值的占位符 —— 环境变量缺失即启动失败，
+#         绝不回退到 application.yml 里的开发默认值（防弱口令与可伪造 token）。
+# 原则二：日志与接口文档对外收敛，减少信息泄露与磁盘/IO 压力。
+spring:
+  datasource:
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  data:
+    redis:
+      password: ${REDIS_PASSWORD}
+  mail:
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+
+# 关闭 MyBatis-Plus 控制台 SQL 打印（开发用 StdOutImpl 会把 SQL 与用户数据刷屏）
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+
+# 关闭 Swagger / OpenAPI 文档，不在生产暴露接口清单
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+app:
+  jwt:
+    # 生产必须显式注入 JWT_SECRET，缺失直接启动失败
+    secret: ${JWT_SECRET}
+  storage:
+    oss:
+      access-key-id: ${OSS_ACCESS_KEY_ID}
+      access-key-secret: ${OSS_ACCESS_KEY_SECRET}

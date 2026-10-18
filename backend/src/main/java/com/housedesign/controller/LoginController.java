@@ -2,7 +2,10 @@ package com.housedesign.controller;
 
 import com.housedesign.Service.LoginService;
 import com.housedesign.annotation.NoRepeatSubmit;
+import com.housedesign.common.EmailCodeService;
 import com.housedesign.common.TokenBlackListService;
+import com.housedesign.dto.request.EmailCodeRequest;
+import com.housedesign.dto.request.EmailLoginRequest;
 import com.housedesign.dto.request.LoginRequest;
 import com.housedesign.dto.request.RegisterRequest;
 import com.housedesign.dto.request.SmsCodeRequest;
@@ -32,6 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 public class LoginController {
     private final TokenBlackListService tokenBlackListService;
     private final SmsCodeService smsCodeService;
+    private final EmailCodeService emailCodeService;
     private final LoginService userService;
 
     // 登录接口
@@ -70,6 +74,22 @@ public class LoginController {
     @PostMapping("/sms/login")
     public Result<String> smsCodeLoginOrRegister(@RequestBody @Valid SmsLoginRequest smsLoginRequest) {
         LoginInfoResponse infoResponse = userService.loginByPhone(smsLoginRequest);
+        return Result.success(infoResponse.getToken());
+    }
+
+    // 发送邮箱验证码（A-11）
+    @PostMapping("/email/code")
+    public Result<String> postEmailCode(@RequestBody @Valid EmailCodeRequest emailCodeRequest,
+            HttpServletRequest httpServletRequest) {
+        String ip = IpUtils.getClientIp(httpServletRequest);
+        emailCodeService.sendCode(emailCodeRequest.getEmail(), ip, emailCodeRequest.getScene());
+        return Result.success();
+    }
+
+    // 邮箱验证码登录（邮箱必须已注册，A-11）
+    @PostMapping("/email/login")
+    public Result<String> emailCodeLogin(@RequestBody @Valid EmailLoginRequest emailLoginRequest) {
+        LoginInfoResponse infoResponse = userService.loginByEmail(emailLoginRequest);
         return Result.success(infoResponse.getToken());
     }
 

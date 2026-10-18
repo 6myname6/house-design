@@ -21,6 +21,7 @@ public class WebConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/api/auth/login", "/api/auth/register",
                         "/api/auth/sms/code", "/api/auth/sms/login",
+                        "/api/auth/email/code", "/api/auth/email/login",
                         // Swagger/OpenAPI 文档不鉴权
                         "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**");
     }
