@@ -91,6 +91,7 @@ app:
     reconcile-stale-seconds: ${GENERATION_RECONCILE_STALE:2100}
 
   sms:
+    provider: ${SMS_PROVIDER:mock}
     code-ttl-seconds: 300
     resend-interval-seconds: 60
     max-verify-fail-count: 5  #验证码输错次数
