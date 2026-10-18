@@ -39,6 +39,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 60s # 覆盖 Spring 启动窗口，启动期失败不计入 retries
+    stop_grace_period: 45s # 优雅停机：> timeout-per-shutdown-phase(30s) + 上下文关闭缓冲；超时才 SIGKILL
     restart: unless-stopped
 
   mysql:

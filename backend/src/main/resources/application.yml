@@ -2,10 +2,14 @@
 # 安全规范：密码/密钥一律走环境变量注入（${VAR:默认值}），绝不硬编码进代码库
 server:
   port: 8080
+  shutdown: graceful  # 第 7 步②：SIGTERM 后停收新请求，等在途请求完成再关闭（配合 compose stop_grace_period: 45s）
 
 spring:
   application:
     name: house-design-backend
+  lifecycle:
+    # 优雅停机排空窗口：与 server.shutdown: graceful 配套；须小于容器 stop_grace_period(45s)
+    timeout-per-shutdown-phase: 30s
   datasource:
     # createDatabaseIfNotExist=true：库不存在时自动创建，无需手工建库
     # 主机/端口/库名全部外置，默认值对齐本地开发（MySQL 跑在 Docker Desktop）
