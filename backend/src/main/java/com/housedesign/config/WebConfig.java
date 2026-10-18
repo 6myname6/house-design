@@ -23,6 +23,8 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/auth/sms/code", "/api/auth/sms/login",
                         "/api/auth/email/code", "/api/auth/email/login",
                         // Swagger/OpenAPI 文档不鉴权
-                        "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**");
+                        "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**",
+                        // Actuator 健康检查：仅容器网络内部（docker healthcheck）使用，无需 JWT
+                        "/actuator/**");
     }
 }

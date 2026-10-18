@@ -37,6 +37,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+        <!-- Actuator：健康检查端点（/actuator/health，供容器 healthcheck 探活） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
         <!-- MyBatis-Plus：通用 Mapper + 条件构造器（Spring Boot 3 专用 starter） -->
         <dependency>
             <groupId>com.baomidou</groupId>

@@ -142,6 +142,19 @@ logging:
   level:
     com.housedesign: INFO
 
+# Actuator（第 7 步①加固）：只暴露 health 端点供容器 healthcheck 探活
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health  # 只暴露 health，其余端点（env/beans/metrics...）一律不对外
+  endpoint:
+    health:
+      show-details: never  # 不返回 redis/db 等组件细节，防止内部拓扑泄露
+  health:
+    mail:
+      enabled: false  # 排除 SMTP 健康检查：外部邮件服务抖动不应拖垮健康判定
+
 
 langchain4j:
   open-ai:
