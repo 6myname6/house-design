@@ -27,6 +27,7 @@ Thumbs.db
 
 # Local config / secrets (never commit real secrets)
 .env
+deploy/.env
 *.env
 backend/src/main/resources/application-local.yml
 backend/src/main/resources/application-*.local.yml
