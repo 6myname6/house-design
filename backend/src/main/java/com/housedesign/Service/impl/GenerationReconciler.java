@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -31,7 +32,12 @@ public class GenerationReconciler {
 
     private static final String STALE_MESSAGE = "生成超时（任务长时间无进展），请重新生成";
 
+    /** 生成中任务的 Redis 占位 key 前缀——与 GenerationServiceImpl.ACTIVE_KEY_PREFIX 保持一致 */
+    private static final String ACTIVE_KEY_PREFIX = "generation:active:";
+
     private final GeneratedModelMapper generatedModelMapper;
+
+    private final StringRedisTemplate stringRedisTemplate;
 
     @Value("${app.generation.reconcile-stale-seconds:2100}")
     private long staleSeconds;
@@ -50,6 +56,13 @@ public class GenerationReconciler {
             return;
         }
         for (GeneratedModel task : stale) {
+            // 活任务跳过：占位 key 在 TTL 内说明任务正在跑或刚提交（每完成一个房间续期一次），
+            // 仅凭 updated_at 过旧就置 FAILED 会误杀长任务，随后任务跑完覆盖成 SUCCESS
+            if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(ACTIVE_KEY_PREFIX + task.getProjectId()))) {
+                log.info("超时对账跳过活任务：taskId={}, projectId={}（Redis 占位仍存在）",
+                        task.getId(), task.getProjectId());
+                continue;
+            }
             GenerationStatus lastStatus = task.getStatus();
             task.setStatus(GenerationStatus.FAILED);
             task.setErrorMessage(STALE_MESSAGE);

@@ -1,6 +1,7 @@
 package com.housedesign.Service.impl;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.housedesign.Service.FileStorageService;
 import com.housedesign.Service.FloorPlanAnalysisService;
@@ -163,6 +165,13 @@ public class GenerationServiceImpl implements GenerationService {
                 roomImageUrls.put(room.getId(), localUrl);
                 // 每完成一个房间续期（单房间最坏 2×(300s 生图+60s 下载)=12min < TTL 30min）
                 renewActiveKey(activeKey);
+                // 同步刷新 DB 进展时间戳：updated_at 列虽有 ON UPDATE CURRENT_TIMESTAMP，
+                // 但行值未变时 MySQL 不会自动刷新——长任务（多房间/限流排队）超 35min 会被
+                // GenerationReconciler 误判为无进展置 FAILED，随后任务跑完又覆盖成 SUCCESS，
+                // 造成「先报生成超时、后又显示成功」的观感。显式 touch updated_at 治本。
+                generatedModelMapper.update(null, new LambdaUpdateWrapper<GeneratedModel>()
+                        .eq(GeneratedModel::getId, record.getId())
+                        .set(GeneratedModel::getUpdatedAt, LocalDateTime.now()));
                 log.info("房间效果图完成：taskId={}, room={}, url={}", record.getId(), room.getName(), localUrl);
             }
 
