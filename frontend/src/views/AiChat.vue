@@ -333,20 +333,11 @@ async function retry(index) {
 
 async function requestAi(question, images, aiMsg) {
   try {
-    // 纯文本：携带当前会话 id（首轮为空，后端新建），响应为 {conversationId, answer}
-    // 图文/纯图：不传 id（本期不走记忆），响应直接是回答字符串
-    const isText = !images || images.length === 0
-    const data = await chatWithAi(
-      isText ? { question, images, conversationId: conversationId.value }
-             : { question, images }
-    )
-    if (isText) {
-      // 保存后端会话 id 到当前会话，供后续轮次回传（watch 自动持久化）
-      if (aiStore.currentSession) aiStore.currentSession.serverConversationId = data.conversationId
-      aiMsg.content = data.answer
-    } else {
-      aiMsg.content = data
-    }
+    // 所有链路统一携带会话 id（图文也走记忆），响应统一为 {conversationId, answer}
+    const data = await chatWithAi({ question, images, conversationId: conversationId.value })
+    // 保存后端会话 id 到当前会话，供后续轮次回传（watch 自动持久化）
+    if (aiStore.currentSession) aiStore.currentSession.serverConversationId = data.conversationId
+    aiMsg.content = data.answer
   } catch (err) {
     aiMsg.error = err?.response?.data?.message || 'AI 暂时开小差了，请稍后重试'
   } finally {

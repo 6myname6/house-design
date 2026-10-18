@@ -26,7 +26,7 @@ public class RedisChatMemoryStore implements ChatMemoryStore {
     @Override
     public void deleteMessages(Object memoryId) {
         String key = KEY_PREFIX + memoryId;
-        stringRedisTemplate.delete(key.toString());
+        stringRedisTemplate.delete(key);
     }
 
     @Override
@@ -49,7 +49,7 @@ public class RedisChatMemoryStore implements ChatMemoryStore {
         // 1 .先将会话消息序列化
         String json = ChatMessageSerializer.messagesToJson(list);
         // 2.将消息存入redis
-        stringRedisTemplate.opsForValue().set(key.toString(), json, Duration.ofSeconds(ttlSeconds));
+        stringRedisTemplate.opsForValue().set(key, json, Duration.ofSeconds(ttlSeconds));
     }
 
 }

@@ -9,6 +9,8 @@ import org.springframework.stereotype.Component;
 
 import com.housedesign.Service.EmailService;
 import com.housedesign.Service.SmsService;
+import com.housedesign.Util.RedisAtomicCounter;
+import com.housedesign.Util.UserContext;
 import com.housedesign.entity.User;
 import com.housedesign.mapper.UserMapper;
 
@@ -103,6 +105,7 @@ public class PasswordChangeService {
 
     /**
      * 校验验证码并修改密码；成功后把当前 token 拉黑，强制重新登录。
+     * 
      * @param rawToken 原始 JWT（不含 Bearer 前缀），由 Controller 从请求头截取传入
      */
     public void changePassword(String channel, String inputCode, String newPassword, String rawToken) {

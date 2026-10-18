@@ -1,6 +1,8 @@
 package com.housedesign.controller;
 
 import com.housedesign.Service.LoginService;
+import com.housedesign.Util.IpUtils;
+import com.housedesign.Util.Result;
 import com.housedesign.annotation.NoRepeatSubmit;
 import com.housedesign.common.EmailCodeService;
 import com.housedesign.common.TokenBlackListService;
@@ -21,8 +23,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.housedesign.common.IpUtils;
-import com.housedesign.common.Result;
 import com.housedesign.common.SmsCodeService;
 
 import lombok.RequiredArgsConstructor;

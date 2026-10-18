@@ -3,7 +3,7 @@ import request from './request'
 // AI 设计助手对话
 // question: 文本提问（纯图场景传空串）
 // images: 已上传图片的 URL 字符串数组（先调 /api/files/upload 获得；纯文本场景传空数组或不传）
-// conversationId: 会话标识（可空；仅纯文本链路使用记忆）
+// conversationId: 会话标识（可空；所有链路统一走后端会话记忆，首轮为空、后端生成后逐轮回传）
 // 二者至少传一个；多模态调用含服务端重试，单独放宽到 120s，覆盖全局 30s 超时
 export function chatWithAi({ question, images, conversationId }) {
   return request.post('/api/ai/chat', { question, images, conversationId }, { timeout: 120000 })

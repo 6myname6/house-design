@@ -5,9 +5,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.housedesign.Service.PersonalService;
+import com.housedesign.Util.Result;
 import com.housedesign.common.EmailBindService;
 import com.housedesign.common.PasswordChangeService;
-import com.housedesign.common.Result;
 import com.housedesign.dto.request.EmailBindCodeRequest;
 import com.housedesign.dto.request.EmailBindRequest;
 import com.housedesign.dto.request.PasswordChangeRequest;

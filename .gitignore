@@ -34,3 +34,4 @@ backend/src/main/resources/application-*.local.yml
 # 个人知识库（本地学习总结，不提交）
 docs/知识库/
 
+docs/bug优化/

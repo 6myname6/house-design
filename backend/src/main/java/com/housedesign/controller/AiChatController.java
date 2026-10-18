@@ -4,9 +4,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.housedesign.Service.AI.AiChatService;
+import com.housedesign.Util.Result;
 import com.housedesign.common.BusinessException;
-import com.housedesign.common.Result;
 import com.housedesign.dto.request.AiChatRequest;
+import com.housedesign.dto.response.AiChatMemoryResponse;
 
 import dev.langchain4j.data.message.ImageContent;
 import jakarta.validation.Valid;
@@ -31,11 +32,9 @@ public class AiChatController {
     @Value("${app.storage.oss.public-base-url}")
     private String ossPublicBaseUrl;
 
-    // AI对话
-
+    // AI对话（纯文本/图文/纯图统一入口，手动管理会话记忆）
     @PostMapping("/chat")
-    // 纯文本返回 AiChatMemoryResponse，图文/纯图返回 String，故用通配符兼容两种形态
-    public Result<?> aiChat(@RequestBody @Valid AiChatRequest aiChatRequest) {
+    public Result<AiChatMemoryResponse> aiChat(@RequestBody @Valid AiChatRequest aiChatRequest) {
 
         if ((aiChatRequest.getQuestion() == null || aiChatRequest.getQuestion().isBlank())
                 && (aiChatRequest.getImages() == null || aiChatRequest.getImages().isEmpty())) {
@@ -43,26 +42,19 @@ public class AiChatController {
             throw new BusinessException(400, "输入不能为空！");
         }
 
-        // 只传文本
-        if (aiChatRequest.getImages() == null || aiChatRequest.getImages().isEmpty()) {
-            log.info("用户提问：{}", aiChatRequest.getQuestion());
-            // 纯文本：透传会话 id，返回 {conversationId, answer}
-            return Result.success(aiChatService.chat(
-                    aiChatRequest.getConversationId(), aiChatRequest.getQuestion()));
-        }
+        // 图片 URL 白名单转换；纯文本为空列表。纯图场景由 Service 补默认提问
+        List<ImageContent> imageContents = aiChatRequest.getImages() == null ? List.of()
+                : aiChatRequest.getImages().stream()
+                        .map(this::toImageContent)
+                        .toList();
 
-        // 获取ImageContents传参
-        List<ImageContent> imageContents = aiChatRequest.getImages().stream()
-                .map(this::toImageContent)
-                .toList();
-
-        // 只传图片
-        if (aiChatRequest.getQuestion() == null || aiChatRequest.getQuestion().isBlank()) {
-            log.info("用户发起图片提问");
-            return Result.success(aiChatService.chat(imageContents));
-        }
-        log.info("用户提问：{}+图片", aiChatRequest.getQuestion());
-        return Result.success(aiChatService.chat(aiChatRequest.getQuestion(), imageContents));
+        log.info("AI 对话请求：question={}，images={}",
+                aiChatRequest.getQuestion(),
+                imageContents.size());
+        return Result.success(aiChatService.chat(
+                aiChatRequest.getConversationId(),
+                aiChatRequest.getQuestion(),
+                imageContents));
     }
 
     /**

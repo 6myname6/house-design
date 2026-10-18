@@ -12,9 +12,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import com.housedesign.Util.IpUtils;
 import com.housedesign.annotation.NoRepeatSubmit;
 import com.housedesign.common.BusinessException;
-import com.housedesign.common.IpUtils;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;

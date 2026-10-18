@@ -205,6 +205,14 @@
   - [x] 3. application.yml 加 `app.ai.memory-ttl-seconds: 86400`
   - [x] 4. 实测：Redis 中可见记忆 JSON、TTL 24h；2026-10-12 第 17 项安全加固复测键为 `ai:memory:{userId}:{uuid}`，跨用户读不到历史
   - 选型：自研 Store 而非 langchain4j-redis——零新增依赖（复用 Lettuce）、TTL 可控、吃透 SPI
+- [x] **会话记忆重构：@AiService 自动记忆 → Service 手动管理（✅ 2026-10-18 完成并实测通过）**：
+  - 背景：联调发现三个实测缺陷——①模型调用失败（超时/限流）时框架已把 SYSTEM+USER 写入记忆，AI 回复永不写入，留下孤儿提问（Redis 实测 3 个 AI=0 的 key）；②首轮失败后 503 不带 conversationId，重试必然新建会话，上下文断裂（同一句"我想要意式风"出现在两个 key），用户感知"没有会话记忆"；③同会话失败重试重复写 USER（实测 USER=6/AI=3），窗口 10 条 3~4 轮即耗尽，AI 真失忆。反编译 DefaultAiServices 确认框架单次调用只 add 一次 USER，重复来自重试
+  - [x] 1. `AiChatServiceImpl` 重写为手动记忆：读历史（store 只存 USER/AI）→ 组装 [SYS]+历史窗口(30 条)+当前 USER → `chatModel.chat` → **成功才**一次性写回；三场景（纯文本/图文/纯图）统一一条路径
+  - [x] 2. `AiChatService` 接口收敛为单方法 `chat(conversationId, question, images)`；`AiChatAssistant`（@AiService）与 `AiConfig`（ChatMemoryProvider）删除，SYSTEM_PROMPT 移入 Impl
+  - [x] 3. `AiChatController` 三分支合并调用，响应统一 `Result<AiChatMemoryResponse>`
+  - [x] 4. 前端 `AiChat.vue` requestAi：图文分支同样携带/保存 conversationId，响应统一取 data.answer
+  - [x] 5. 实测（mvn spring-boot:run 起新代码 + 自签 JWT 直调）：两轮对话第二轮准确答出「原木风」（记忆生效）；期间智谱 429 限流两次均 503 且 Redis 保持 USER=1/AI=1（失败零污染）；重试成功后 USER=2/AI=2 无重复（幂等）；store 不存 SYSTEM（SYS=0）、TTL 24h 滑动；`mvn compile` + `vite build` 通过。跨用户隔离沿用 memoryId 拼 userId（2026-10-12 已实测 IDOR）
+  - 文档：接口文档 §7.1（响应统一对象、失败不污染语义）、知识库 01（手动记忆架构 + 复盘）已更新
 - [ ] **图片 URL/base64 混合模式（OSS 已就绪，前置条件满足，对应 F-3 已完成）**：`AiChatController.toImageContent` 按前缀分流——`http(s)://` 开头走 `ImageContent.from(URI.create(url))`（智谱服务器自行下载），`data:` 开头走现有 DataURL 解析；接口契约 `images: string[]` 与前端零改动。约束：必须公网可达（公共读或有效期 ≥5min 的签名 URL；用公网 endpoint 而非 `-internal`；不能开 Referer 防盗链，智谱拉取不带 Referer）。适用：已存档图片（帖子图/设计图）走 URL 省 33% base64 膨胀，用户本地新图仍走 base64
 - [ ] **前端聊天页**：`api/ai.js` + `views/AiChat.vue`（气泡 UI、图片选择/预览、`FileReader` 转 DataURL、loading/503 重试）+ 路由 + TabBar 入口
 

@@ -3,8 +3,8 @@ package com.housedesign.Service.impl;
 import org.springframework.stereotype.Service;
 
 import com.housedesign.Service.PersonalService;
+import com.housedesign.Util.UserContext;
 import com.housedesign.common.BusinessException;
-import com.housedesign.common.UserContext;
 import com.housedesign.dto.request.UpdateRequest;
 import com.housedesign.dto.response.PersonalDataResponse;
 import com.housedesign.entity.User;

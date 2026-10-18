@@ -1,8 +1,8 @@
 package com.housedesign.interceptor;
 
-import com.housedesign.common.JwtUtil;
+import com.housedesign.Util.JwtUtil;
+import com.housedesign.Util.UserContext;
 import com.housedesign.common.TokenBlackListService;
-import com.housedesign.common.UserContext;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
