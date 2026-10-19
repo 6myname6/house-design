@@ -4,7 +4,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.housedesign.Service.AI.AiChatService;
-import com.housedesign.Util.Result;
+import com.housedesign.Utils.Result;
 import com.housedesign.common.BusinessException;
 import com.housedesign.dto.request.AiChatRequest;
 import com.housedesign.dto.response.AiChatMemoryResponse;

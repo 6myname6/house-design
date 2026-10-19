@@ -9,7 +9,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.housedesign.common.BusinessException;
 import com.housedesign.Service.ProjectService;
-import com.housedesign.Util.Result;
+import com.housedesign.Utils.Result;
 import com.housedesign.dto.response.ProjectResponse;
 
 import jakarta.validation.constraints.NotBlank;

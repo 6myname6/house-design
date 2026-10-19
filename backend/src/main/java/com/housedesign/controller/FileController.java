@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.housedesign.Service.FileStorageService;
-import com.housedesign.Util.Result;
+import com.housedesign.Utils.Result;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

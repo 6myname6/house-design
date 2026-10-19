@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import com.housedesign.Util.IpUtils;
+import com.housedesign.Utils.IpUtils;
 import com.housedesign.annotation.NoRepeatSubmit;
 import com.housedesign.common.BusinessException;
 

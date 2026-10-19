@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.housedesign.Service.EmailService;
-import com.housedesign.Util.RedisAtomicCounter;
+import com.housedesign.Utils.RedisAtomicCounter;
 import com.housedesign.entity.User;
 import com.housedesign.mapper.UserMapper;
 

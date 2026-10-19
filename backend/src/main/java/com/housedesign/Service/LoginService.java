@@ -12,7 +12,7 @@ public interface LoginService {
     Long register(RegisterRequest registerRequest);
 
     // 账号密码登录
-    LoginInfoResponse login(LoginRequest loginRequest, String ip);
+    LoginInfoResponse loginByPassword(LoginRequest loginRequest, String ip);
 
     // 手机号验证码登录（手机号必须已注册）
     LoginInfoResponse loginByPhone(SmsLoginRequest smsLoginRequest);

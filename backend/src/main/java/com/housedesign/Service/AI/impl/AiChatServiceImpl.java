@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 
 import com.housedesign.Service.AI.AiChatService;
-import com.housedesign.Util.UserContext;
+import com.housedesign.Utils.UserContext;
 import com.housedesign.common.BusinessException;
 import com.housedesign.common.PromptSanitizer;
 import com.housedesign.common.RedisChatMemoryStore;

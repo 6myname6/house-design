@@ -8,7 +8,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.housedesign.Service.FileStorageService;
 import com.housedesign.Service.ProjectService;
-import com.housedesign.Util.UserContext;
+import com.housedesign.Utils.UserContext;
 import com.housedesign.common.BusinessException;
 import com.housedesign.dto.response.ProjectResponse;
 import com.housedesign.entity.DesignProject;

@@ -22,7 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.housedesign.Service.FileStorageService;
 import com.housedesign.Service.FloorPlanAnalysisService;
 import com.housedesign.Service.GenerationService;
-import com.housedesign.Util.UserContext;
+import com.housedesign.Utils.UserContext;
 import com.housedesign.common.AiImageException;
 import com.housedesign.common.BusinessException;
 import com.housedesign.common.PromptSanitizer;

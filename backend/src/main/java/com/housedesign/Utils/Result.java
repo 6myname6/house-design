@@ -1,4 +1,4 @@
-package com.housedesign.Util;
+package com.housedesign.Utils;
 
 import lombok.Data;
 
