@@ -32,6 +32,9 @@ deploy/.env
 backend/src/main/resources/application-local.yml
 backend/src/main/resources/application-*.local.yml
 
+# MySQL 备份产物（含用户数据与密码哈希，绝不入库）
+deploy/backups/
+
 # 个人知识库（本地学习总结，不提交）
 docs/知识库/
 

@@ -67,6 +67,21 @@ services:
     logging: *default-logging
     restart: unless-stopped
 
+  mysql-backup:
+    # 备份 sidecar（§7.4）：复用 mysql:8.4 自带 mysqldump，启动即备份、每 24h 一次、保留 7 份
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./backup.sh:/backup.sh:ro
+      - ./backups:/backups
+    entrypoint: [ "bash", "/backup.sh" ]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    logging: *default-logging
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     environment:
