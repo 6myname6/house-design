@@ -366,3 +366,35 @@
 - [ ] **帖子搜索/筛选**（按内容/标签）
 - [x] **对象存储（阿里云 OSS，唯一存储后端）**：`FileStorageService` 抽象 + 模板方法基类 `AbstractFileStorageService`（校验/命名/MIME/远程下载），唯一实现 `OssFileStorageServiceImpl` 无条件装配；单例 `OSSClient`（@PostConstruct fail-fast + @PreDestroy 关连接池）、显式 Content-Type 与一年缓存头。本地磁盘实现与 `/files/**` 静态映射已移除，密钥缺失即启动失败。2026-10-14：历史本地文件（84 个）已一次性迁移至 OSS 并改写数据库 URL；实测上传/公网读 200
 - [ ] **CDN 加速域名**：OSS 已通，后续在其前面挂 CDN，仅需替换 `app.storage.oss.public-base-url`
+
+## 互踢登录与 AI 会话历史上云（A-12 / A-13，2026-10-19 详设）
+
+> 起因（2026-10-19 实测发现）：①同一账号可在两个浏览器同时登录——JWT 无状态，已签发 token 互不感知；②换浏览器后 AI 历史会话"消失"——历史只存 localStorage 按浏览器隔离，云端 Redis 记忆完好却无任何找回入口（当日已用手写 rescue 脚本应急找回）。
+> 决策：P1 互踢登录（A-12）+ P3 历史持久化上云（A-13）双管齐下；轻量 Redis 找回方案（P2）因记忆 24h TTL 不做（历史会再"消失"）。
+
+### A-12 同账号单端互踢（✅ 2026-10-19 编码完成，curl 实测六项全过）
+
+- [x] 1. Redis key：`login:active:{userId}` = SHA-256(token) 十六进制指纹，TTL = token 剩余有效期（≤7 天）；摘要算法复用 `TokenBlackListService.sha256Hex`（public static，抽 Util 留作后续重构）
+- [x] 2. 签发点改造：`LoginServiceImpl` 三处签发（login / loginByPhone / loginByEmail）抽 `issueToken(user)` 私有方法：生成 token → 写 active key（覆盖=后登录踢先登录）→ 返回
+- [x] 3. 拦截器校验：`JwtInterceptor` 黑名单检查之后追加——active key **存在且 ≠ 当前 token 摘要** → 401「账号已在其他地方登录，请重新登录」（文案 2026-10-19 用户定版）；**key 不存在直接放行**（兼容存量 token 与 Redis 清空场景，避免上线即全员掉线）
+- [x] 4. fail-open：active key 查询异常时放行 + error 日志（与黑名单同级处理，可用性优先，互踢属增强安全而非硬依赖）
+- [x] 5. 登出联动：`logout` 在 blacklist 之后 `DEL login:active:{userId}`（改密场景不改：token 已被拉黑，key 遗留无害，重新登录即覆盖）
+- [x] 6. 前端配套：`request.js` 401 分支提示改为 `error.response.data.message || '登录已过期，请重新登录'`，后端被踢/过期/黑名单文案透出
+- [x] 7. 实测（2026-10-19 部署栈 curl 六项）：A 登录写指纹 → B 登录覆盖 → A /me 401 契约文案 → B /me 200 → B 登出账本删除 → B 旧 token 401 黑名单；双浏览器 UX 确认待用户走查
+
+### A-13 AI 会话历史持久化（跨浏览器一致）
+
+**表**（见数据库设计 §8/§9）：`t_ai_session` 会话元数据（UK(user_id, conversation_id) 防 IDOR + 并发重复建档）、`t_ai_message` 消息正文（images JSON 数组，参照 PostComment 的 JacksonTypeHandler 先例）。
+
+- [ ] 1. DDL：`house_design.sql` 追加两表；存量库（dev 3306 / deploy 数据卷）执行 CREATE TABLE IF NOT EXISTS
+- [ ] 2. 实体/Mapper：AiChatSession、AiChatMessage（MyBatis-Plus，role 用 String 非枚举存储）
+- [ ] 3. 写入服务：新增 `Service/AI/AiChatHistoryService.saveTurn(userId, conversationId, question, images, answer)`，@Transactional——session upsert（首次 title=首条提问前 20 字，uk 撞键捕获 DuplicateKeyException 重查，沿用 register 并发兜底先例）+ 追加 user/assistant 两条消息；调用点 = `AiChatServiceImpl` 成功写 Redis 记忆之后（「失败不落库」契约延续到 DB）
+- [ ] 4. 读接口：`GET /api/ai/sessions`（我的会话列表，updated_at 倒序，返回 conversationId/title/messageCount/updatedAt）+ `GET /api/ai/sessions/{conversationId}`（消息数组按 id 正序；非本人/不存在统一 404 防 IDOR；conversationId 非 UUID 400）
+- [ ] 5. 前端：AiChat.vue 进页拉会话列表，与本地按 serverConversationId 合并——云端同 cid 覆盖本地消息（云端为权威落库），本地独有会话保留；localStorage 降级为缓存与离线兜底
+- [ ] 6. 实测：账号在浏览器 A 聊两轮 → 浏览器 B 登录同账号（顺带验证 A-12 踢线）→ B 进 AI 页看到完整历史 → 清 localStorage 刷新后仍在 → 切历史会话续聊上下文接上（cid 一致）
+- [ ] 7. 文档回填：接口文档 §7.2/§7.3、数据库设计 §8/§9、需求文档 A-12/A-13
+
+**边界与不做**：
+- 会话删除/重命名接口本期不做（列表 + 只读找回已覆盖当前诉求）
+- 历史正文不参与模型记忆：模型上下文仍走 Redis 30 条窗口，DB 只做展示层持久化，两套数据各司其职
+- 单账号历史量上限暂不设限（个人项目量级），后续可加分页

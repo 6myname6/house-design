@@ -2,7 +2,8 @@ package com.housedesign.Service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.housedesign.Service.LoginService;
-import com.housedesign.Util.JwtUtil;
+import com.housedesign.Utils.JwtUtil;
+import com.housedesign.common.ActiveTokenService;
 import com.housedesign.common.BusinessException;
 import com.housedesign.common.EmailCodeService;
 import com.housedesign.common.LoginRateLimiter;
@@ -34,8 +35,16 @@ public class LoginServiceImpl implements LoginService {
     private final LoginRateLimiter loginRateLimiter;
     private final SmsCodeService smsCodeService;
     private final EmailCodeService emailCodeService;
+    private final ActiveTokenService activeTokenService;
     /** 用户不存在时用于拉平响应耗时的假 BCrypt 哈希（cost=10），仅用于时序对齐 */
     private static final String DUMMY_HASH = "$2a$10$jOQld7IG2qbJtpYYxx1LF.wO0tAhn08mUYcPvkR7tj9nhS07Pm3ce";
+
+    private LoginInfoResponse issueToken(User user) {
+        String token;
+        token = jwtUtil.createToken(user.getId(), user.getUsername());
+        activeTokenService.save(user.getId(), token);
+        return new LoginInfoResponse(user.getId(), token);
+    }
 
     @Override
     public Long register(RegisterRequest registerRequest) {
@@ -98,7 +107,7 @@ public class LoginServiceImpl implements LoginService {
     }
 
     @Override
-    public LoginInfoResponse login(LoginRequest loginRequest, String ip) {
+    public LoginInfoResponse loginByPassword(LoginRequest loginRequest, String ip) {
         String username = loginRequest.getUsername();
         String password = loginRequest.getPassword();
         // 锁定期检查：已达失败上限则直接抛出429
@@ -123,9 +132,7 @@ public class LoginServiceImpl implements LoginService {
         // 用户名存在，密码正确，清除计数器，返回登录信息
         // 生成 JWT 令牌
         loginRateLimiter.clearOnSuccess(username);
-        String token;
-        token = jwtUtil.createToken(user.getId(), user.getUsername());
-        return new LoginInfoResponse(user.getId(), token);
+        return issueToken(user);
     }
 
     @Override
@@ -141,8 +148,7 @@ public class LoginServiceImpl implements LoginService {
         if (user == null) {
             throw new BusinessException(400, "该手机号未注册，请先注册");
         }
-        String token = jwtUtil.createToken(user.getId(), user.getUsername());
-        return new LoginInfoResponse(user.getId(), token);
+        return issueToken(user);
     }
 
     @Override
@@ -158,8 +164,7 @@ public class LoginServiceImpl implements LoginService {
         if (user == null) {
             throw new BusinessException(400, "该邮箱未注册，请先注册");
         }
-        String token = jwtUtil.createToken(user.getId(), user.getUsername());
-        return new LoginInfoResponse(user.getId(), token);
+        return issueToken(user);
     }
 
 }

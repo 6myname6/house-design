@@ -1,7 +1,8 @@
 package com.housedesign.interceptor;
 
-import com.housedesign.Util.JwtUtil;
-import com.housedesign.Util.UserContext;
+import com.housedesign.Utils.JwtUtil;
+import com.housedesign.Utils.UserContext;
+import com.housedesign.common.ActiveTokenService;
 import com.housedesign.common.TokenBlackListService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,6 +23,7 @@ public class JwtInterceptor implements HandlerInterceptor {
 
     private final JwtUtil jwtUtil;
     private final TokenBlackListService tokenBlackListService;
+    private final ActiveTokenService activeTokenService;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
@@ -45,8 +47,12 @@ public class JwtInterceptor implements HandlerInterceptor {
         if (tokenBlackListService.isBlacklisted(token)) {
             return reject(response, "token非法！");
         }
+        Long userId = jwtUtil.getUserId(token);
+        if (!activeTokenService.matchesActive(userId, token)) {
+            return reject(response, "账号已在其他地方登录，请重新登录");
+        }
         // 身份放入上下文，后续 Service 通过 UserContext.getUserId() 取用
-        UserContext.setUserId(jwtUtil.getUserId(token));
+        UserContext.setUserId(userId);
         return true;
     }
 

@@ -1,9 +1,11 @@
 package com.housedesign.controller;
 
 import com.housedesign.Service.LoginService;
-import com.housedesign.Util.IpUtils;
-import com.housedesign.Util.Result;
+import com.housedesign.Utils.IpUtils;
+import com.housedesign.Utils.JwtUtil;
+import com.housedesign.Utils.Result;
 import com.housedesign.annotation.NoRepeatSubmit;
+import com.housedesign.common.ActiveTokenService;
 import com.housedesign.common.EmailCodeService;
 import com.housedesign.common.TokenBlackListService;
 import com.housedesign.dto.request.EmailCodeRequest;
@@ -37,6 +39,8 @@ public class LoginController {
     private final SmsCodeService smsCodeService;
     private final EmailCodeService emailCodeService;
     private final LoginService userService;
+    private final JwtUtil jwtUtil;
+    private final ActiveTokenService activeTokenService;
 
     // 登录接口
     @PostMapping("/login")
@@ -47,7 +51,7 @@ public class LoginController {
         // 取Ip
         String ip = IpUtils.getClientIp(httpServletRequest);
         // 2.调用UserService.login方法登录用户
-        LoginInfoResponse info = userService.login(loginRequest, ip);
+        LoginInfoResponse info = userService.loginByPassword(loginRequest, ip);
         // 3.根据登录结果返回响应
         return Result.success(info.getToken());
     }
@@ -98,6 +102,7 @@ public class LoginController {
     public Result<String> logout(@RequestHeader("Authorization") String authHeader) {
         String token = authHeader.substring(7);
         tokenBlackListService.blacklist(token);
+        activeTokenService.delete(jwtUtil.getUserId(token));
         return Result.success("成功退出");
     }
 

@@ -36,11 +36,11 @@ request.interceptors.response.use(
     return Promise.reject(new Error(res.message || '请求失败'))
   },
   (error) => {
-    // HTTP 401：token 失效 → 清空并跳登录页
+    // HTTP 401：token 失效 → 清空并跳登录页（message 透传后端：过期/被互踢/黑名单文案不同）
     if (error.response && error.response.status === 401) {
       removeToken()
       useAiChatStore().reset() // 清空内存中的会话，避免登录页/换账号期间残留
-      ElMessage.error('登录已过期，请重新登录')
+      ElMessage.error(error.response?.data?.message || '登录已过期，请重新登录')
       router.push('/login')
     } else if (error.response && error.response.status === 404) {
       ElMessage.error('资源不存在')

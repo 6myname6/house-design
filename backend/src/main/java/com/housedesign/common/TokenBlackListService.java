@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
-import com.housedesign.Util.JwtUtil;
+import com.housedesign.Utils.JwtUtil;
 
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +25,7 @@ public class TokenBlackListService {
     private static final String KEY_PREFIX = "jwt:blacklist:";
 
     // 算指纹
-    private String sha256Hex(String token) {
+    public static String sha256Hex(String token) {
         try {
             MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
             byte[] hashBytes = messageDigest.digest(token.getBytes(StandardCharsets.UTF_8));
