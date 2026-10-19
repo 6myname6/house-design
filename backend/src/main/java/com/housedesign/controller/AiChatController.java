@@ -69,7 +69,7 @@ public class AiChatController {
             throw new BusinessException(400, "图片地址不能为空");
         }
         // 2.OSS 公网地址：直接交给模型，由模型厂商服务器自行下载
-        if (url.startsWith(ossPublicBaseUrl)) {
+        if (url.startsWith(ossPublicBaseUrl + "/")) {
             return ImageContent.from(URI.create(url));
         }
         // 3.非可信基址：拒绝

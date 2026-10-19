@@ -26,6 +26,14 @@ springdoc:
   swagger-ui:
     enabled: false
 
+# LangChain4j 调试日志收敛：生产不落 AI 请求/响应全文（含用户输入与模型回答），
+# 防止容器日志膨胀与用户对话隐私泄露（基础配置里 log-responses: true 仅供开发排查）
+langchain4j:
+  open-ai:
+    chat-model:
+      log-requests: false
+      log-responses: false
+
 app:
   jwt:
     # 生产必须显式注入 JWT_SECRET，缺失直接启动失败
@@ -37,3 +45,5 @@ app:
   
   sms:
     provider: ${SMS_PROVIDER}
+
+   

@@ -413,3 +413,17 @@
 - 明确不做：向量化检索（依赖 embedding 模型 + 向量存储，独立立项）、把模型记忆本体搬进 DB（展示与上下文两层各司其职）
 
 **前置**：A-13 完成（t_ai_message 全量落库是摘要的水位与压缩对象）。
+
+## 上云前全量代码复审（2026-10-19，✅ 完成）
+
+> 范围：密钥与配置外部化 / 部署栈（compose/nginx/backup.sh）/ 后端（鉴权、IDOR、事务、并发、异常、日志）/ 前端（API 基址、token、打包配置）/ 数据库与文档对齐。结论：P0×0，代码层可上云；鉴权链路、归属校验、文件安全三道防线完整。
+
+**已修复**：
+
+- [x] P1 AiChatController 图片白名单 `startsWith(base)` → `startsWith(base + "/")`，封堵 `aliyuncs.com.evil.com` 前缀绕过（用户手改，助手复核通过；合法上传 URL 恒为 base + "/" + key，不受影响）
+- [x] P2 application-prod.yml 覆盖 `langchain4j log-requests/log-responses=false`，生产不落 AI 对话全文（基础配置 true 仅保留给 dev 排查）
+- [x] P2 deploy/nginx.conf 加 gzip（min_length 1k / comp_level 5 / vary / 文本类 types，图片已压缩格式排除）
+
+**记录不修（P3，无实害）**：WebConfig swagger 白名单（prod 已被 springdoc 关闭）、MySQL useSSL=false（compose 内网，迁 RDS 必须开）、Hikari 默认参数、Dockerfile root 运行、FileController 用 Result.error 与 BusinessException 规范不一致。
+
+**遗留执行项**：见部署文档 §8 云服务器部署执行清单（HTTPS / 端口 80 / 强密码 / 专用 DB 账号 / 构建物传输 / OSS 防盗链 / 备份异地化）。
