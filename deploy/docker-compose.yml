@@ -1,3 +1,10 @@
+# 日志滚动（第 7 步③）：四服务统一 json-file 轮转，单文件 10m × 3 个，单服务约 30MB 封顶
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   nginx:
     image: nginx:stable-alpine
@@ -9,6 +16,7 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    logging: *default-logging
     restart: unless-stopped
 
   backend:
@@ -40,6 +48,7 @@ services:
       retries: 5
       start_period: 60s # 覆盖 Spring 启动窗口，启动期失败不计入 retries
     stop_grace_period: 45s # 优雅停机：> timeout-per-shutdown-phase(30s) + 上下文关闭缓冲；超时才 SIGKILL
+    logging: *default-logging
     restart: unless-stopped
 
   mysql:
@@ -55,6 +64,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    logging: *default-logging
     restart: unless-stopped
 
   redis:
@@ -69,6 +79,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    logging: *default-logging
     restart: unless-stopped
 
 volumes:
