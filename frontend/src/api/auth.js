@@ -10,16 +10,6 @@ export function loginApi(data) {
   return request.post('/api/auth/login', data)
 }
 
-// 发送短信验证码：data = { phone, scene }，scene=login（已注册）/register（未注册），无返回数据
-export function sendSmsCodeApi(data) {
-  return request.post('/api/auth/sms/code', data)
-}
-
-// 手机号验证码登录：data = { phone, code }，返回 token 字符串
-export function smsLoginApi(data) {
-  return request.post('/api/auth/sms/login', data)
-}
-
 // 发送邮箱验证码：data = { email, scene }，scene=login（已注册）/register（未注册），无返回数据
 export function sendEmailCodeApi(data) {
   return request.post('/api/auth/email/code', data)
@@ -30,7 +20,7 @@ export function emailLoginApi(data) {
   return request.post('/api/auth/email/login', data)
 }
 
-// 发送修改密码验证码（需登录）：data = { channel: 'sms' | 'email' }，收件地址后端决定
+// 发送修改密码验证码（需登录）：data = { channel: 'email' }，收件地址后端决定
 export function sendPasswordCodeApi(data) {
   return request.post('/api/auth/password/code', data)
 }

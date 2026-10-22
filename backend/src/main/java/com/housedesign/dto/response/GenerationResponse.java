@@ -19,7 +19,7 @@ public class GenerationResponse {
     /** 任务状态：PENDING/PROCESSING/SUCCESS/FAILED（枚举序列化为枚举名） */
     private GenerationStatus status;
 
-    /** 实际使用的 AI 提供方（mock / zhipu） */
+    /** 实际使用的 AI 提供方（mock / bailian） */
     private String provider;
 
     /** 3D 模型（glb/gltf）URL，mock 模式为空 */

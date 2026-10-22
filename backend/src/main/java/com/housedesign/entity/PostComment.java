@@ -32,6 +32,9 @@ public class PostComment {
     /** 被回复的评论 ID（NULL=顶层评论；非NULL=该评论的回复） */
     private Long parentId;
 
+    /** 被回复评论的作者（逻辑外键 → t_user.id；前端据此显示"回复 xxx"，顶层评论为 NULL） */
+    private Long replyToUserId;
+
     /** 评论文字（与 images 至少填一个） */
     private String content;
 

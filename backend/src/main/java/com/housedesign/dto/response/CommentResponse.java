@@ -24,6 +24,9 @@ public class CommentResponse {
     /** 被回复的评论 ID（NULL=顶层评论；非NULL=回复） */
     private Long parentId;
 
+    /** 被回复者昵称（Service 层补全；仅回复非空，顶层评论为 null） */
+    private String replyToName;
+
     /** 评论者昵称（Service 层补全） */
     private String authorName;
 

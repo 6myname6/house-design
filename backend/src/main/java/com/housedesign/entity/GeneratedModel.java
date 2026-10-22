@@ -29,7 +29,7 @@ public class GeneratedModel {
     /** 状态（按枚举名存 VARCHAR）：PENDING/PROCESSING/SUCCESS/FAILED */
     private GenerationStatus status;
 
-    /** AI 提供方（mock / zhipu） */
+    /** AI 提供方（mock / bailian） */
     private String provider;
 
     /** 3D 模型（glb/gltf）URL */

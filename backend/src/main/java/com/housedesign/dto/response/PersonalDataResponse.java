@@ -11,8 +11,6 @@ public class PersonalDataResponse {
     private String username;
     private String nickname;
     private String avatar;
-    /** 掩码手机号（如 138****0083），未绑定为 null；供前端判断可用的改密验证通道 */
-    private String maskedPhone;
     /** 掩码邮箱（如 3***@qq.com），未绑定为 null */
     private String maskedEmail;
 }

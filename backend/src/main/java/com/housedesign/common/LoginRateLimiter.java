@@ -17,9 +17,8 @@ public class LoginRateLimiter {
     private final StringRedisTemplate stringRedisTemplate;
     private static final String LOGIN_KEY_PREFIX = "login:fail:";// 登录计数key前缀
     private static final String IPKEY_PREFIX = "login:ip:fail:";
-    private static final String FAIL_KEY_PREFIX = "sms:fail:login:";
 
-    @Value("${app.sms.max-verify-fail-count:5}")
+    @Value("${app.email.max-verify-fail-count:5}")
     private int maxVerifyFailCount;
 
     @Value("${app.login-limit.max-fail-count:5}")
@@ -96,49 +95,6 @@ public class LoginRateLimiter {
         stringRedisTemplate.delete(key);
     }
 
-    // 基于验证码
-    // 判断账号是否在锁定期，已锁定则直接抛出429异常
-    public void smsCheckLocked(String phone) {
-        // 1.拼出完整key：前缀+phone
-        String key = FAIL_KEY_PREFIX + phone;
-        // 2.查计数对应redis-cli 的GET
-        String value = stringRedisTemplate.opsForValue().get(key);
-        // 3.无记录则放行
-        if (value == null) {
-            return;
-        }
-        // 4.value强转
-        int count = Integer.parseInt(value);
-        // 5.判断是否超计数
-        if (count >= maxVerifyFailCount) {
-            log.warn("验证码登录失败{}次,仍在锁定期", count);
-            throw new BusinessException(429, "验证码错误次数过多，请重新获取验证码");
-        }
-    }
-
-    // 记录失败次数
-    public void smsRecordFailure(String phone) {
-        // 1.拼出完整key：前缀+phone
-        String key = FAIL_KEY_PREFIX + phone;
-        // 2.计数+1
-        // 3.仅首次失败设置过期时间
-        Long failCount = redisAtomicCounter.incrWithTtl(key, 300L);
-        // 4.输出日志
-        log.info("验证码登录失败{}次", failCount);
-        if (failCount != null && failCount >= maxVerifyFailCount) {
-            log.warn("登录失败{}次,已锁定", failCount);
-            throw new BusinessException(429, "验证码错误次数过多，请重新获取验证码");
-        }
-    }
-
-    // 登录成功，清除失败次数
-    public void smsClearOnSuccess(String phone) {
-        // 1.拼出完整key：前缀+username
-        String key = FAIL_KEY_PREFIX + phone;
-        // 2.清除记录
-        stringRedisTemplate.delete(key);
-    }
-
     public void checkIpLocked(String ip) {
         // 1.拼出完整key：前缀+username
         String key = IPKEY_PREFIX + ip;
@@ -163,7 +119,7 @@ public class LoginRateLimiter {
     }
 
     public void recordIpFailure(String ip) {
-        // 1.拼出完整key：前缀+phone
+        // 1.拼出完整key：前缀+ip
         String key = IPKEY_PREFIX + ip;
         // 2.计数+1
         // 3.仅首次失败设置过期时间

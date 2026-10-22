@@ -14,6 +14,11 @@ import com.housedesign.common.AiImageException;
 import org.springframework.beans.factory.annotation.Value;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * 文生图服务：对接阿里云百炼专属实例的 DashScope 协议（base-url 指向 {host}/api/v1）。
+ * wanx 系列模型为异步任务：POST /services/aigc/text2image/image-synthesis 提交，
+ * 轮询 GET /tasks/{task_id} 直至 SUCCEEDED，取 output.results[0].url（临时链接，调用方转存 OSS）。
+ */
 @Service
 @Slf4j
 public class AIimageService {
@@ -43,37 +48,40 @@ public class AIimageService {
 
     // 文生图（显式指定尺寸，如 1440x720 / 1024x1024）:发起任务并阻塞轮询,返回临时图片url
     public String generateImageUrl(String prompt, String size) {
-        // 1.发起生成任务
+        // 1.提交异步任务（X-DashScope-Async: enable 必带，否则同步模式直接超时）
         JsonNode submit;
         try {
             submit = webClient.post()
-                    .uri("/images/generations")
+                    .uri("/services/aigc/text2image/image-synthesis")
                     .header("Authorization", "Bearer " + apiKey)
+                    .header("X-DashScope-Async", "enable")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(java.util.Map.of("model", imageModel, "prompt", prompt, "size", size))
+                    .bodyValue(java.util.Map.of(
+                            "model", imageModel,
+                            "input", java.util.Map.of("prompt", prompt),
+                            // 尺寸用 x 分隔（本地配置习惯），DashScope 要求 * 分隔；n=1 只出一张，避免默认 4 张浪费额度
+                            "parameters", java.util.Map.of("size", size.replace('x', '*'), "n", 1)))
                     .retrieve()
                     .bodyToMono(JsonNode.class)
                     .block(Duration.ofSeconds(timeoutSeconds));
         } catch (WebClientResponseException e) {
-            throw classifyHttpError(e, "智谱发起生成");
+            throw classifyHttpError(e, "百炼提交生成");
         } catch (WebClientRequestException e) {
             // 连不上/握手失败/断网等 IO 类故障：值得重试
-            log.warn("智谱发起生成网络异常", e);
-            throw new AiImageException("智谱网络连接失败，请稍后重试", true, null, e);
+            log.warn("百炼提交生成网络异常", e);
+            throw new AiImageException("百炼网络连接失败，请稍后重试", true, null, e);
         } catch (IllegalStateException e) {
             // block 超时抛 IllegalStateException("Timeout on blocking read...")：可重试
-            throw classifyBlockingError(e, "智谱发起生成");
+            throw classifyBlockingError(e, "百炼提交生成");
         }
-        String taskId = submit.path("id").asText(null);
-        String firstUrl = extractDataUrl(submit);
-        // 兼容"发起即出图"的模型（如 cogview-3-flash）：响应直接带 data[0].url，无需轮询
-        if (firstUrl != null) {
-            log.info("智谱发起即出图：model={}, url已返回", imageModel);
-            return firstUrl;
+        String taskId = submit.path("output").path("task_id").asText(null);
+        if (taskId == null || taskId.isBlank()) {
+            log.warn("百炼提交生成响应缺少 task_id：{}", truncate(submit.toString(), 500));
+            throw new AiImageException("AI生成失败:提交任务无 task_id", false, null, null);
         }
-        log.info("智谱发起生成成功(需轮询)：taskId={}, 完整响应={}", taskId, truncate(submit.toString(), 500));
+        log.info("百炼提交生成成功：model={}, taskId={}", imageModel, taskId);
 
-        // 2.轮询异步结果,直到SUCCESS或超时
+        // 2.轮询异步结果,直到SUCCEEDED或超时
         long deadline = System.currentTimeMillis() + timeoutSeconds * 1000L;
         while (System.currentTimeMillis() < deadline) {
             try {
@@ -86,33 +94,35 @@ public class AIimageService {
             JsonNode result;
             try {
                 result = webClient.get()
-                        .uri("/async-result/" + taskId)
+                        .uri("/tasks/" + taskId)
                         .header("Authorization", "Bearer " + apiKey)
                         .retrieve()
                         .bodyToMono(JsonNode.class)
                         .block(Duration.ofSeconds(30));
             } catch (WebClientResponseException e) {
-                throw classifyHttpError(e, "智谱查询结果");
+                throw classifyHttpError(e, "百炼查询结果");
             } catch (WebClientRequestException e) {
-                log.warn("智谱查询结果网络异常：taskId={}", taskId, e);
-                throw new AiImageException("智谱网络连接失败，请稍后重试", true, null, e);
+                log.warn("百炼查询结果网络异常：taskId={}", taskId, e);
+                throw new AiImageException("百炼网络连接失败，请稍后重试", true, null, e);
             } catch (IllegalStateException e) {
-                throw classifyBlockingError(e, "智谱查询结果");
+                throw classifyBlockingError(e, "百炼查询结果");
             }
-            String status = result.path("task_status").asText("");
-            log.info("轮询生成状态：taskId={}, status={}, 响应={}", taskId, status, truncate(result.toString(), 300));
-            if ("SUCCESS".equalsIgnoreCase(status)) {
-                return result.path("data").get(0).path("url").asText();
+            JsonNode output = result.path("output");
+            String status = output.path("task_status").asText("");
+            log.info("轮询生成状态：taskId={}, status={}", taskId, status);
+            if ("SUCCEEDED".equalsIgnoreCase(status)) {
+                // results[0].url 为 24h 有效的临时链接，调用方负责转存 OSS
+                return output.path("results").get(0).path("url").asText();
             }
-            if ("FAIL".equalsIgnoreCase(status) || "FAILED".equalsIgnoreCase(status)) {
+            if ("FAILED".equalsIgnoreCase(status) || "CANCELED".equalsIgnoreCase(status)
+                    || "UNKNOWN".equalsIgnoreCase(status)) {
                 // 上游业务失败（审核拒绝/内容违规等），重试无意义
-                throw new AiImageException("AI生成失败:" + result.path("error").asText(), false, null, null);
+                String detail = output.path("message").asText("");
+                String code = output.path("code").asText("");
+                throw new AiImageException("AI生成失败:" + (code.isEmpty() ? detail : code + " " + detail),
+                        false, null, null);
             }
-            // 兜底：若响应里已带 url（部分模型终态直接给图），提前返回
-            String url = extractDataUrl(result);
-            if (url != null) {
-                return url;
-            }
+            // PENDING / RUNNING 继续等
         }
         // 轮询超过 timeoutSeconds：任务可能仍在排队，重试可能成功
         throw new AiImageException("AI生成超时(" + timeoutSeconds + "s)，请稍后重试", true, null, null);
@@ -151,20 +161,11 @@ public class AIimageService {
             return null;
         }
         try {
-            long seconds = Long.parseLong(headerValue.trim());
+            Long seconds = Long.parseLong(headerValue.trim());
             return Math.min(seconds, 30) * 1000L;
         } catch (NumberFormatException ignore) {
             return null;
         }
-    }
-
-    // 从响应 data[0].url 提取图片 URL，无则返回 null
-    private String extractDataUrl(JsonNode node) {
-        JsonNode data = node == null ? null : node.path("data");
-        if (data != null && data.isArray() && data.size() > 0 && data.get(0).hasNonNull("url")) {
-            return data.get(0).path("url").asText();
-        }
-        return null;
     }
 
     // 截断过长的响应体，避免塞满 error_message 列（VARCHAR(1024)）

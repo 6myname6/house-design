@@ -9,7 +9,7 @@ services:
   nginx:
     image: nginx:stable-alpine
     ports:
-      - "8080:80"
+      - "80:80" # 云服务器对外端口（本机模拟时宿主 80 被 Watt Toolkit 占用，可临时改 8080）
     volumes:
       - ../frontend/dist:/usr/share/nginx/html:ro
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
@@ -22,6 +22,7 @@ services:
   backend:
     build: ../backend
     environment:
+      TZ: Asia/Shanghai # 容器默认 UTC，JVM/日志时间戳需要对齐北京时间
       SPRING_PROFILES_ACTIVE: prod
       DB_HOST: mysql
       DB_USERNAME: ${DB_USERNAME}
@@ -31,10 +32,9 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       OSS_ACCESS_KEY_ID: ${OSS_ACCESS_KEY_ID}
       OSS_ACCESS_KEY_SECRET: ${OSS_ACCESS_KEY_SECRET}
-      ZHIPU_API_KEY: ${ZHIPU_API_KEY}
+      BAILIAN_API_KEY: ${BAILIAN_API_KEY}
       MAIL_USERNAME: ${MAIL_USERNAME}
       MAIL_PASSWORD: ${MAIL_PASSWORD}
-      SMS_PROVIDER: ${SMS_PROVIDER}
     depends_on:
       mysql:
         condition: service_healthy
@@ -54,6 +54,8 @@ services:
   mysql:
     image: mysql:8.4
     environment:
+      # created_at DEFAULT CURRENT_TIMESTAMP 由 MySQL 时钟写入，必须对齐时区，否则帖子/评论时间差 8 小时
+      TZ: Asia/Shanghai
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: house_design
     volumes:
@@ -71,6 +73,7 @@ services:
     # 备份 sidecar（§7.4）：复用 mysql:8.4 自带 mysqldump，启动即备份、每 24h 一次、保留 7 份
     image: mysql:8.4
     environment:
+      TZ: Asia/Shanghai # backup.sh 用 date 命名备份文件，需对齐时区
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
     volumes:
       - ./backup.sh:/backup.sh:ro

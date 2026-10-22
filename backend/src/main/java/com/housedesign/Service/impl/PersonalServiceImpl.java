@@ -53,24 +53,15 @@ public class PersonalServiceImpl implements PersonalService {
         return toResponse(user);
     }
 
-    // 实体 → 响应 DTO（含手机/邮箱掩码，供前端判断可用的改密验证通道）
+    // 实体 → 响应 DTO（含邮箱掩码，供前端判断可用的改密验证通道）
     private PersonalDataResponse toResponse(User user) {
         PersonalDataResponse personalData = new PersonalDataResponse();
         personalData.setId(user.getId());
         personalData.setUsername(user.getUsername());
         personalData.setNickname(user.getNickname());
         personalData.setAvatar(user.getAvatar());
-        personalData.setMaskedPhone(maskPhone(user.getPhone()));
         personalData.setMaskedEmail(maskEmail(user.getEmail()));
         return personalData;
-    }
-
-    // 13800138000 → 138****8000；为空返回 null
-    private String maskPhone(String phone) {
-        if (StrUtil.isBlank(phone) || phone.length() < 7) {
-            return null;
-        }
-        return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
     }
 
     // zhangsan@qq.com → z***@qq.com；为空返回 null

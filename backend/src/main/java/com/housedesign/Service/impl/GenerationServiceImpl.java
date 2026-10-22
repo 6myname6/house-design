@@ -177,7 +177,7 @@ public class GenerationServiceImpl implements GenerationService {
 
             // 4.组装 photo-tour v2 场景并落库
             PhotoTourScene scene = buildScene(designProject, floorPlan, roomImageUrls);
-            record.setProvider("zhipu");
+            record.setProvider("bailian");
             record.setPanoramaUrl(roomImageUrls.get(floorPlan.getEntryRoomId()));
             record.setPreviewImageUrl(roomImageUrls.get(floorPlan.getEntryRoomId()));
             record.setSceneConfig(objectMapper.writeValueAsString(scene));

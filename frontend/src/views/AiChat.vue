@@ -181,7 +181,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { chatWithAi } from '../api/ai'
 import { uploadFile } from '../api/file'
@@ -305,7 +305,9 @@ async function onSend() {
 
   // 2.用 URL 组装消息并请求 AI（请求体仅几百字节，不再携带 base64）
   const userMsg = { id: nextId(), role: 'user', content: question, images: imageUrls, pending: false }
-  const aiMsg = { id: nextId(), role: 'assistant', content: '', images: [], pending: true, error: '' }
+  // aiMsg 必须用 reactive 包裹：push 进 store 后，requestAi 里对它的 content/pending 赋值
+  // 要能触发响应式更新与 deep watch 落盘——裸对象赋值会绕过代理，导致回答已到达但界面冻结在加载态
+  const aiMsg = reactive({ id: nextId(), role: 'assistant', content: '', images: [], pending: true, error: '' })
   aiStore.ensureSession()
   messages.value.push(userMsg, aiMsg)
   aiStore.touch(question) // 首条用户消息作为会话标题，并刷新 updatedAt

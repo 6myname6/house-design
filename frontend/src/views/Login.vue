@@ -46,30 +46,6 @@
             </el-form>
           </el-tab-pane>
 
-          <el-tab-pane label="手机登录" name="phone">
-            <el-form :model="phoneForm" :rules="phoneRules" ref="phoneFormRef" size="large" class="auth-form" @submit.prevent="onPhoneSubmit">
-              <el-form-item prop="phone">
-                <el-input v-model="phoneForm.phone" placeholder="手机号" maxlength="11" autocomplete="tel" />
-              </el-form-item>
-              <el-form-item prop="code">
-                <div class="code-row">
-                  <el-input
-                    v-model="phoneForm.code"
-                    placeholder="6 位验证码"
-                    maxlength="6"
-                    inputmode="numeric"
-                  />
-                  <el-button class="code-btn" :disabled="countdown > 0 || codeSending" :loading="codeSending" @click="onSendCode">
-                    {{ countdown > 0 ? `${countdown}s 后重发` : '获取验证码' }}
-                  </el-button>
-                </div>
-              </el-form-item>
-              <el-button type="primary" native-type="submit" class="submit" :loading="phoneLoading">
-                进 入
-              </el-button>
-            </el-form>
-          </el-tab-pane>
-
           <el-tab-pane label="邮箱登录" name="email">
             <el-form :model="emailForm" :rules="emailRules" ref="emailFormRef" size="large" class="auth-form" @submit.prevent="onEmailSubmit">
               <el-form-item prop="email">
@@ -109,7 +85,7 @@ import { ref, reactive, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '../stores/user'
-import { sendSmsCodeApi, sendEmailCodeApi } from '../api/auth'
+import { sendEmailCodeApi } from '../api/auth'
 
 const router = useRouter()
 const route = useRoute()
@@ -141,71 +117,10 @@ async function onSubmit() {
   }
 }
 
-// ---- 手机验证码登录 ----
+// ---- 登录方式切换 ----
 const loginType = ref('account')
-const phoneLoading = ref(false)
-const phoneFormRef = ref(null)
-const phoneForm = reactive({ phone: '', code: '' })
 
-const phoneRules = {
-  phone: [
-    { required: true, message: '请输入手机号', trigger: 'blur' },
-    { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确', trigger: 'blur' }
-  ],
-  code: [
-    { required: true, message: '请输入验证码', trigger: 'blur' },
-    { pattern: /^\d{6}$/, message: '请输入 6 位数字验证码', trigger: 'blur' }
-  ]
-}
-
-// 60 秒发送倒计时
-const countdown = ref(0)
-const codeSending = ref(false) // 验证码接口进行中：防止响应返回前连点发多条短信
-let countdownTimer = null
-
-async function onSendCode() {
-  if (codeSending.value || countdown.value > 0) return
-  // 先只校验手机号字段
-  try {
-    await phoneFormRef.value.validateField('phone')
-  } catch {
-    return
-  }
-  codeSending.value = true
-  try {
-    await sendSmsCodeApi({ phone: phoneForm.phone, scene: 'login' })
-    ElMessage.success('验证码已发送，请查收（Mock 环境请看后端日志）')
-    countdown.value = 60
-    countdownTimer = setInterval(() => {
-      countdown.value -= 1
-      if (countdown.value <= 0) {
-        clearInterval(countdownTimer)
-        countdownTimer = null
-      }
-    }, 1000)
-  } catch {
-    // 发送失败：拦截器已统一提示，不启动倒计时，允许重试
-  } finally {
-    codeSending.value = false
-  }
-}
-
-async function onPhoneSubmit() {
-  if (phoneLoading.value) return
-  phoneLoading.value = true
-  try {
-    await phoneFormRef.value.validate()
-    await userStore.loginByPhone(phoneForm.phone, phoneForm.code)
-    ElMessage.success('登录成功')
-    router.push(route.query.redirect || '/projects')
-  } catch {
-    // 校验失败或请求失败：请求拦截器已统一弹错误提示
-  } finally {
-    phoneLoading.value = false
-  }
-}
-
-// ---- 邮箱验证码登录（A-11，与手机登录对称）----
+// ---- 邮箱验证码登录（A-11）----
 const EMAIL_PATTERN = /^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
 const emailLoading = ref(false)
 const emailFormRef = ref(null)
@@ -268,9 +183,6 @@ async function onEmailSubmit() {
 }
 
 onUnmounted(() => {
-  if (countdownTimer) {
-    clearInterval(countdownTimer)
-  }
   if (emailCountdownTimer) {
     clearInterval(emailCountdownTimer)
   }

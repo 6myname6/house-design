@@ -11,9 +11,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PasswordChangeRequest {
-    /** 验证通道，须与发码时一致：sms / email */
+    /** 验证通道，须与发码时一致：固定 email */
     @NotBlank(message = "通道不能为空")
-    @Pattern(regexp = "^(sms|email)$", message = "非法通道")
+    @Pattern(regexp = "^email$", message = "非法通道")
     private String channel;
 
     @NotBlank(message = "验证码不能为空")

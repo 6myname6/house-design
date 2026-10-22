@@ -96,7 +96,8 @@ public abstract class AbstractFileStorageService implements FileStorageService {
     protected byte[] downloadBytes(String url) {
         ResponseEntity<byte[]> response;
         try {
-            response = HTTP.get().uri(url).retrieve()
+            // 用 java.net.URI 重载：String 重载会走 UriTemplate 再编码，把签名里的 %2F 变 %252F 导致 OSS 403
+            response = HTTP.get().uri(URI.create(url)).retrieve()
                     .toEntity(byte[].class)
                     .block(Duration.ofSeconds(60));
         } catch (WebClientResponseException e) {

@@ -12,8 +12,6 @@ import com.housedesign.dto.request.EmailCodeRequest;
 import com.housedesign.dto.request.EmailLoginRequest;
 import com.housedesign.dto.request.LoginRequest;
 import com.housedesign.dto.request.RegisterRequest;
-import com.housedesign.dto.request.SmsCodeRequest;
-import com.housedesign.dto.request.SmsLoginRequest;
 import com.housedesign.dto.response.LoginInfoResponse;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,8 +23,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.housedesign.common.SmsCodeService;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -36,7 +32,6 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class LoginController {
     private final TokenBlackListService tokenBlackListService;
-    private final SmsCodeService smsCodeService;
     private final EmailCodeService emailCodeService;
     private final LoginService userService;
     private final JwtUtil jwtUtil;
@@ -63,22 +58,6 @@ public class LoginController {
         log.info("注册：username={}", registerRequest.getUsername());
         // 2.调用UserService.register方法注册用户
         return Result.success(userService.register(registerRequest));
-    }
-
-    // 发送验证码
-    @PostMapping("/sms/code")
-    public Result<String> postAcode(@RequestBody @Valid SmsCodeRequest smsCodeRequest,
-            HttpServletRequest httpServletRequest) {
-        String ip = IpUtils.getClientIp(httpServletRequest);
-        smsCodeService.sendCode(smsCodeRequest.getPhone(), ip, smsCodeRequest.getScene());
-        return Result.success();
-    }
-
-    // 验证码登录（手机号必须已注册）
-    @PostMapping("/sms/login")
-    public Result<String> smsCodeLoginOrRegister(@RequestBody @Valid SmsLoginRequest smsLoginRequest) {
-        LoginInfoResponse infoResponse = userService.loginByPhone(smsLoginRequest);
-        return Result.success(infoResponse.getToken());
     }
 
     // 发送邮箱验证码（A-11）

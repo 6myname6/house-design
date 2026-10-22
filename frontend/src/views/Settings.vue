@@ -4,20 +4,10 @@
       <h2 class="title">账号设置</h2>
     </header>
 
-    <!-- 联系方式：手机（只读）/ 邮箱（可绑定/换绑） -->
+    <!-- 联系方式：邮箱（可绑定/换绑） -->
     <section class="contact-card">
       <h3 class="section-title">联系方式</h3>
       <p class="section-note">邮箱用于接收验证码登录、修改密码等账号安全通知。</p>
-
-      <div class="contact-row">
-        <div class="contact-info">
-          <span class="contact-label">手机号</span>
-          <span :class="['contact-value', { muted: !userStore.userInfo?.maskedPhone }]">
-            {{ userStore.userInfo?.maskedPhone || '未绑定' }}
-          </span>
-        </div>
-        <el-button disabled title="短信通道资质未就绪，暂未开放">绑定</el-button>
-      </div>
 
       <div class="contact-row">
         <div class="contact-info">
@@ -35,7 +25,7 @@
     <!-- 修改密码 -->
     <section class="pwd-card">
       <h3 class="section-title">修改密码</h3>
-      <p class="section-note">通过绑定的手机或邮箱接收验证码以验证身份，改密成功后需用新密码重新登录。</p>
+      <p class="section-note">通过绑定的邮箱接收验证码以验证身份，改密成功后需用新密码重新登录。</p>
 
       <el-form
         v-if="hasChannel"
@@ -45,15 +35,8 @@
         label-position="top"
         @submit.prevent="onSubmit"
       >
-        <el-form-item label="验证方式" prop="channel">
-          <el-radio-group v-model="form.channel">
-            <el-radio v-if="userStore.userInfo?.maskedPhone" value="sms">
-              手机（{{ userStore.userInfo.maskedPhone }}）
-            </el-radio>
-            <el-radio v-if="userStore.userInfo?.maskedEmail" value="email">
-              邮箱（{{ userStore.userInfo.maskedEmail }}）
-            </el-radio>
-          </el-radio-group>
+        <el-form-item v-if="userStore.userInfo?.maskedEmail" label="验证方式">
+          <span class="current-email">邮箱（{{ userStore.userInfo.maskedEmail }}）</span>
         </el-form-item>
 
         <el-form-item label="验证码" prop="code">
@@ -104,7 +87,7 @@
 
       <el-alert
         v-else
-        title="当前账号未绑定手机或邮箱，无法自助修改密码，请先绑定邮箱。"
+        title="当前账号未绑定邮箱，无法自助修改密码，请先绑定邮箱。"
         type="warning"
         :closable="false"
         show-icon
@@ -170,18 +153,14 @@ const EMAIL_PATTERN = /^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
 
 const formRef = ref(null)
 const form = reactive({
-  channel: '',
   code: '',
   newPassword: '',
   confirm: ''
 })
 
-const hasChannel = computed(
-  () => !!(userStore.userInfo?.maskedPhone || userStore.userInfo?.maskedEmail)
-)
+const hasChannel = computed(() => !!userStore.userInfo?.maskedEmail)
 
 const rules = {
-  channel: [{ required: true, message: '请选择验证方式', trigger: 'change' }],
   code: [
     { required: true, message: '请输入验证码', trigger: 'blur' },
     { pattern: /^\d{6}$/, message: '请输入 6 位数字验证码', trigger: 'blur' }
@@ -205,18 +184,16 @@ const codeSending = ref(false)
 let countdownTimer = null
 
 onMounted(async () => {
-  // 进入页面拉一次最新信息（含掩码手机/邮箱），并默认选中第一个可用通道
+  // 进入页面拉一次最新信息（含掩码邮箱），决定改密卡片可用性
   await userStore.fetchMe()
-  const info = userStore.userInfo
-  form.channel = info?.maskedPhone ? 'sms' : info?.maskedEmail ? 'email' : ''
 })
 
 async function onSendCode() {
-  if (codeSending.value || countdown.value > 0 || !form.channel) return
+  if (codeSending.value || countdown.value > 0) return
   codeSending.value = true
   try {
-    await sendPasswordCodeApi({ channel: form.channel })
-    ElMessage.success(form.channel === 'sms' ? '验证码已发送（Mock 环境请看后端日志）' : '验证码已发送，请查收邮箱')
+    await sendPasswordCodeApi({ channel: 'email' })
+    ElMessage.success('验证码已发送，请查收邮箱')
     countdown.value = 60
     countdownTimer = setInterval(() => {
       countdown.value -= 1
@@ -239,7 +216,7 @@ async function onSubmit() {
   try {
     await formRef.value.validate()
     await changePasswordApi({
-      channel: form.channel,
+      channel: 'email',
       code: form.code,
       newPassword: form.newPassword
     })
@@ -314,12 +291,8 @@ async function onConfirmBind() {
     const message = await bindEmailApi({ email: bindForm.email, code: bindForm.code })
     ElMessage.success(message || '操作成功')
     bindVisible.value = false
-    // 刷新掩码与改密可用通道
+    // 刷新掩码，改密卡片随之可用
     await userStore.fetchMe()
-    // 新绑定邮箱后，若改密通道原本为空，自动切到 email
-    if (!form.channel && userStore.userInfo?.maskedEmail) {
-      form.channel = 'email'
-    }
   } catch {
     // 拦截器已统一提示
   } finally {

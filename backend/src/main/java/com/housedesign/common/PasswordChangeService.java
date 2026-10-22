@@ -8,7 +8,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import com.housedesign.Service.EmailService;
-import com.housedesign.Service.SmsService;
 import com.housedesign.Utils.RedisAtomicCounter;
 import com.housedesign.Utils.UserContext;
 import com.housedesign.entity.User;
@@ -20,8 +19,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 修改密码验证码组件（A-5）：已登录用户凭本人绑定手机/邮箱收到的验证码改密。
- * 安全要点：收件地址一律按 UserContext 中的 userId 查库得到，绝不使用请求体传入的手机/邮箱；
+ * 修改密码验证码组件（A-5）：已登录用户凭本人绑定邮箱收到的验证码改密。
+ * 安全要点：收件地址一律按 UserContext 中的 userId 查库得到，绝不使用请求体传入的邮箱；
  * Redis key 独立 pwd:* 前缀，与登录/注册验证码场景隔离，防越场重放。
  */
 @Slf4j
@@ -50,34 +49,32 @@ public class PasswordChangeService {
     private final LoginRateLimiter loginRateLimiter;
     private final UserMapper userMapper;
     private final BCryptPasswordEncoder passwordEncoder;
-    private final SmsService smsService;
     private final EmailService emailService;
     private final TokenBlackListService tokenBlackListService;
 
-    /** 发送修改密码验证码；channel=sms/email，收件地址由后端按当前登录用户查库决定 */
+    /** 发送修改密码验证码；channel 固定 email，收件地址由后端按当前登录用户查库决定 */
     public void sendChangeCode(String channel) {
         Long userId = UserContext.getUserId();
         User user = userMapper.selectById(userId);
         if (user == null) {
             throw new BusinessException(400, "用户不存在");
         }
-        // 取本人该通道的绑定地址：未绑定直接拒绝，不发信、不占位
-        String target = "sms".equals(channel) ? user.getPhone() : user.getEmail();
-        String channelName = "sms".equals(channel) ? "手机" : "邮箱";
+        // 取本人绑定邮箱：未绑定直接拒绝，不发信、不占位
+        String target = user.getEmail();
         if (StrUtil.isBlank(target)) {
-            throw new BusinessException(400, "当前账号未绑定" + channelName + "，无法使用该方式验证");
+            throw new BusinessException(400, "当前账号未绑定邮箱，无法使用该方式验证");
         }
 
         String limitKey = LIMIT_KEY_PREFIX + userId;
         String dailyKey = DAILY_KEY_PREFIX + userId;
-        // 60s 发送间隔：两通道共用一把锁，防切通道刷
+        // 60s 发送间隔
         Boolean acquired = stringRedisTemplate.opsForValue().setIfAbsent(limitKey, "1", resendIntervalSeconds,
                 TimeUnit.SECONDS);
         if (Boolean.FALSE.equals(acquired)) {
             Long remain = stringRedisTemplate.getExpire(limitKey);
             throw new BusinessException(429, "发送过于频繁，请" + remain + "秒后重试");
         }
-        // 当日总量（两通道合计）
+        // 当日总量
         long dailyCount = redisAtomicCounter.incrWithTtl(dailyKey, dailyWindowSeconds);
         if (dailyCount > dailyLimit) {
             throw new BusinessException(429, "今日验证码发送次数已达上限，请明天再试");
@@ -90,11 +87,7 @@ public class PasswordChangeService {
         loginRateLimiter.clearCodeFailure(FAIL_KEY_PREFIX + userId);
 
         try {
-            if ("sms".equals(channel)) {
-                smsService.send(target, code);
-            } else {
-                emailService.send(target, code);
-            }
+            emailService.send(target, code);
             log.info("改密验证码已发送：userId={}, channel={}", userId, channel);
         } catch (Exception e) {
             // 通道发送失败：删 60s 占位允许立即重试（日计数不回滚，防刷）

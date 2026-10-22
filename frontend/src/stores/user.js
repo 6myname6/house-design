@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { loginApi, registerApi, getMe, updateMe, smsLoginApi, emailLoginApi, logoutApi } from '../api/auth'
+import { loginApi, registerApi, getMe, updateMe, emailLoginApi, logoutApi } from '../api/auth'
 import { getToken, setToken, removeToken, getUserIdFromToken } from '../utils/storage'
 import { useAiChatStore } from './aiChat'
 
@@ -22,15 +22,6 @@ export const useUserStore = defineStore('user', {
       // 登录成功后拉一次用户信息回显
       await this.fetchMe()
     },
-    // 手机验证码登录：手机号必须已注册
-    async loginByPhone(phone, code) {
-      const token = await smsLoginApi({ phone, code })
-      this.token = token
-      setToken(token)
-      useAiChatStore().bindUser(getUserIdFromToken())
-      // 登录成功后拉一次用户信息回显
-      await this.fetchMe()
-    },
     // 邮箱验证码登录：邮箱必须已注册（A-11）
     async loginByEmail(email, code) {
       const token = await emailLoginApi({ email, code })
@@ -39,9 +30,9 @@ export const useUserStore = defineStore('user', {
       useAiChatStore().bindUser(getUserIdFromToken())
       await this.fetchMe()
     },
-    // 注册：用户名 + 密码 + 验证码 + 手机/邮箱（二选一）；成功后自动登录
-    async register({ username, password, code, phone, email }) {
-      await registerApi({ username, password, code, phone, email })
+    // 注册：用户名 + 密码 + 验证码 + 邮箱；成功后自动登录
+    async register({ username, password, code, email }) {
+      await registerApi({ username, password, code, email })
       await this.login(username, password)
     },
     // 拉取当前用户信息

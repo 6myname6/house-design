@@ -13,11 +13,6 @@
         <ul class="meta-list">
           <li><span class="label">用户名</span>{{ userStore.userInfo?.username }}</li>
           <li><span class="label">昵称</span>{{ userStore.userInfo?.nickname || '-' }}</li>
-          <li><span class="label">手机号</span>
-            <span :class="{ 'meta-empty': !userStore.userInfo?.maskedPhone }">
-              {{ userStore.userInfo?.maskedPhone || '未绑定' }}
-            </span>
-          </li>
           <li><span class="label">邮箱</span>
             <span :class="{ 'meta-empty': !userStore.userInfo?.maskedEmail }">
               {{ userStore.userInfo?.maskedEmail || '未绑定' }}

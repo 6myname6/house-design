@@ -74,6 +74,11 @@ public class PostServiceImpl implements PostService {
         resp.setPostId(comment.getPostId());
         resp.setUserId(comment.getUserId());
         resp.setParentId(comment.getParentId());
+        // 被回复者昵称（仅回复非空，顶层评论为 null）
+        if (comment.getReplyToUserId() != null) {
+            User replyToUser = userMapper.selectById(comment.getReplyToUserId());
+            resp.setReplyToName(replyToUser.getNickname());
+        }
         resp.setAuthorName(author.getNickname());
         resp.setAuthorAvatar(author.getAvatar());
         resp.setContent(comment.getContent());
@@ -269,11 +274,13 @@ public class PostServiceImpl implements PostService {
 
         // 取顶层评论
         Long rootId = parent.getParentId() == null ? parent.getId() : parent.getParentId();
-        // 新建回复：parent_id 指向顶层评论，post_id 沿用父评论所属帖子
+        // 新建回复：parent_id 指向顶层评论，post_id 沿用父评论所属帖子；
+        // reply_to_user_id 记录实际被回复者（B站式：每条回复都显示"回复 xxx"）
         PostComment reply = new PostComment();
         reply.setPostId(parent.getPostId());
         reply.setUserId(userId);
         reply.setParentId(rootId);
+        reply.setReplyToUserId(parent.getUserId());
         reply.setContent(request.getContent());
         reply.setImages(request.getImages());
         postCommentMapper.insert(reply);

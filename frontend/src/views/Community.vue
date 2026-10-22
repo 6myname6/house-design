@@ -132,7 +132,7 @@
               <div class="comment-body">
                 <div class="comment-meta">
                   <span class="comment-author">{{ r.authorName }}</span>
-                  <span class="comment-reply-to">回复</span>
+                  <span v-if="r.replyToName" class="comment-reply-to">回复 {{ r.replyToName }}</span>
                   <time class="comment-time">{{ formatTime(r.createdAt) }}</time>
                 </div>
                 <div class="comment-text">{{ r.content }}</div>
