@@ -14,7 +14,7 @@
 
 [![照片漫游 · AI 生成的客厅实景与户型导览（点击观看视频演示）](docs/images/viewer3d.png)](https://www.bilibili.com/video/BV1Xony6eEPQ)
 
-**▶ [B 站视频演示](https://www.bilibili.com/video/BV1Xony6eEPQ)** · **⭐ [GitHub 源码](https://github.com/6myname6/house-design)**
+**▶ [B 站视频演示](https://www.bilibili.com/video/BV1Xony6eEPQ)** · **📍 项目地址：[github.com/6myname6/house-design](https://github.com/6myname6/house-design)**
 
 </div>
 
