@@ -11,6 +11,7 @@
 | P2 | 认证 + 文件上传模块（含 Redis 登录限流、手机验证码登录） | 完成 |
 | P3 | 项目 CRUD + 社区模块（发帖/评论/点赞/楼中楼） | 完成 |
 | P4 | AI 生成链路（直连智谱 CogView，异步 + 轮询 + 阿里云 OSS 持久化） | 完成 |
+| P4.1 | AI 供应商切换：智谱 → 阿里云百炼专属实例（对话 qwen3-vl-plus 走 OpenAI 兼容协议 / 生图 wanx2.1-t2i-turbo 走 DashScope 异步协议，Key 改名 BAILIAN_API_KEY） | 完成 |
 | P5 | Vue3 前端（登录/项目/小圈/我的/详情+生成，网页端布局） | 进行中 |
 | P5.1 | 杂志风 UI 重构（编辑杂志·建筑工作室设计体系，需求 N-9） | 进行中（基础层+导航/首页/登录标杆页已完成，6 页迁移中） |
 | P5.5 | AI 设计助手（LangChain4j + glm-4.6v-flash，图文理解对话） | 已上线（纯文本拒答遵循等待强化提示词） |
@@ -170,8 +171,42 @@
 
 ### 技术债（登记，不在本期做）
 
-- [ ] `EmailCodeService` 与 `SmsCodeService` 抽象 `AbstractVerifyCodeService` 模板基类（标识、key 前缀、通道、注册状态查询为子类钩子），消除重复
-- [ ] `LoginRateLimiter` 的 sms* 三方法收敛到通用验证码计数方法
+- ~~`EmailCodeService` 与 `SmsCodeService` 抽象 `AbstractVerifyCodeService` 模板基类（标识、key 前缀、通道、注册状态查询为子类钩子），消除重复~~（2026-10-21 手机号功能下线，`SmsCodeService` 已删除，此项技术债自然消除）
+- ~~`LoginRateLimiter` 的 sms* 三方法收敛到通用验证码计数方法~~（sms* 方法已随 2026-10-21 手机号功能下线删除）
+
+## 手机号功能下线（2026-10-21 决策）
+
+> 背景：短信签名受运营商实名制报备政策阻塞（个人认证无法申请），真实环境用户收不到验证码，Mock 通道无演示价值；云上部署冒烟确认后整体下线手机号注册/登录。账号体系仅保留邮箱联系标识（A-11）；邮箱注册/登录、账号密码登录、邮箱改密、邮箱绑定不受影响。需求侧记录见需求文档 A-10（⛔ 已下线）/ §10.5（存档）。
+
+### 后端
+
+- [x] 删除 `LoginController` 手机号接口：`POST /api/auth/sms/code`、`POST /api/auth/sms/login`
+- [x] 删除 `LoginServiceImpl` 手机号分支：注册 phone XOR 校验与 `setPhone` 建档、`loginByPhone`（注册简化为邮箱必填单通道）
+- [x] 删除三个短信类：`common/SmsCodeService`、`Service/SmsService`、`Service/impl/MockSmsServiceImpl`
+- [x] `LoginRateLimiter` 删除 sms* 三方法；`maxVerifyFailCount` 配置键由 `app.sms.max-verify-fail-count` 迁移为 `app.email.max-verify-fail-count`（application.yml 同步补充）
+- [x] 删除 DTO：`SmsCodeRequest`、`SmsLoginRequest`
+- [x] `User` 实体删 `phone` 字段；`PersonalDataResponse`/`PersonalServiceImpl` 删 `maskedPhone` 与 maskPhone
+- [x] `PasswordChangeService`（改密）删除 sms 通道分支；`PasswordCodeRequest`/`PasswordChangeRequest` 的 channel 正则收紧为 `^email$`
+- [x] 配置：application.yml 删 `app.sms.*` 块；application-prod.yml 删 `app.sms.provider`；compose 删 `SMS_PROVIDER` 环境变量
+- [x] `db/house_design.sql`：`t_user` 删 `phone` 列与 `uk_phone` 索引（username/password 注释同步更新）
+- [x] 测试目录无手机号/短信用例；`mvn test` 12 个单测全绿 + `mvn package` 通过（2026-10-21）
+
+### 前端
+
+- [x] `api/auth.js`：删 `sendSmsCodeApi`、`smsLoginApi`
+- [x] `views/Register.vue`：删「手机注册」radio 与手机号表单/发码分支/`.reg-switch` 死样式，仅邮箱注册
+- [x] `views/Login.vue`：删「手机登录」Tab 及其表单/倒计时逻辑，剩「账号登录 / 邮箱登录」两 Tab
+- [x] `stores/user.js`：删 `loginByPhone`，register 载荷去 phone
+- [x] `views/Settings.vue`：删手机绑定栏与 sms 通道 radio，改密通道固定 email（hasChannel 只看 maskedEmail）
+- [x] `views/Profile.vue`：删手机号展示行
+- [x] `vite build` 通过（2026-10-21）
+
+### 数据与上线
+
+- [ ] 本地开发库执行存量库 ALTER（DROP uk_phone + phone）
+- [ ] 重新构建 dist + jar，scp 传输，服务器 `docker compose up -d --build` 二次上线
+- [ ] 二次冒烟：邮箱注册/登录、账号密码登录、改密、AI 生成、社区
+- [ ] 服务器 .env 删 `SMS_PROVIDER` 行；MySQL 数据卷如已导入旧表需重建或手动 ALTER
 
 ## AI 多模态对话（2026-09-18，🚧 开发中）
 
@@ -187,7 +222,7 @@
 - [x] **清理测试接口**：已删除 `TestAiController`（GET /api/chat，`@RequestParam List<ImageContent>` 无法绑定，仅纯文本可用）
 - [x] **版本踩坑（重要）**：langchain4j 1.0.1（starter 1.0.1-beta6 实际依赖的核心包）的声明式 `@AiService` **不支持 `List<ImageContent>` 方法参数**（`DefaultAiServices.validateParameters` 要求 ≥2 参时每个参数都必须有 @V/@UserMessage/@UserName/@MemoryId，且消息组装只取文本模板）。最终架构：**纯文本走 `AiChatAssistant`（@AiService）；图文/纯图在 Service 层直接注入 `ChatModel`，手工 `UserMessage.from(List<Content>{TextContent + ImageContent...})` 调用**（注意 `UserMessage.from(String, List)` 的 String 是昵称不是正文）
 - [x] **Bean 冲突踩坑**：Starter 已按 yml 自动装配 `openAiChatModel`，不要再手写 `AiConfig` 里的 `@Bean ChatModel`（两个同类型 bean 导致启动报 IllegalConfigurationException），已删除 AiConfig
-- [ ] **纯文本拒答不稳定（实测发现）**：glm-4.6v-flash 对"非装修问题礼貌拒绝"指令遵循弱（图片场景能拒，纯文本问冒泡排序仍答代码）；待强化系统提示词（few-shot 示例 / 更强约束措辞）后回归
+- [ ] **纯文本拒答不稳定（实测发现）**：glm-4.6v-flash 对"非装修问题礼貌拒绝"指令遵循弱（图片场景能拒，纯文本问冒泡排序仍答代码）；待强化系统提示词（few-shot 示例 / 更强约束措辞）后回归。⚠️ 2026-10 切换百炼 qwen3-vl-plus 后需在新模型上复测此问题是否仍存在
 - [x] **多轮记忆（AI-3，✅ 2026-09-23 完成，本期仅纯文本链路，学习模式一步步教）**：契约见接口文档 §11.3
   - [x] 1. `AiChatRequest` 加 `conversationId` 字段
   - [x] 2. 新增响应 DTO `AiChatMemoryResponse {conversationId, answer}`（dto/response）
