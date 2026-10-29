@@ -1,4 +1,4 @@
-# 日志滚动（第 7 步③）：四服务统一 json-file 轮转，单文件 10m × 3 个，单服务约 30MB 封顶
+# 日志滚动（第 7 步③）：所有服务统一 json-file 轮转，单文件 10m × 3 个，单服务约 30MB 封顶
 x-logging: &default-logging
   driver: json-file
   options:
@@ -35,10 +35,18 @@ services:
       BAILIAN_API_KEY: ${BAILIAN_API_KEY}
       MAIL_USERNAME: ${MAIL_USERNAME}
       MAIL_PASSWORD: ${MAIL_PASSWORD}
+      # RAG 向量库（PostgreSQL + pgvector，仅存向量，文本权威在 MySQL）
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_USERNAME: ${PG_USERNAME:-postgres}
+      PG_PASSWORD: ${PG_PASSWORD:?PG_PASSWORD is required}
+      PG_DATABASE: ${PG_DATABASE:-kb_vector}
     depends_on:
       mysql:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     healthcheck:
       # 探活真实业务健康（actuator 聚合 MySQL/Redis 连通性），而非仅进程存活
@@ -85,6 +93,26 @@ services:
     logging: *default-logging
     restart: unless-stopped
 
+  postgres:
+    # RAG 向量索引专用：pgvector 官方镜像；数据可重建，但仍挂卷避免每次重导入
+    image: pgvector/pgvector:pg16
+    environment:
+      TZ: Asia/Shanghai
+      POSTGRES_USER: ${PG_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?PG_PASSWORD is required}
+      POSTGRES_DB: ${PG_DATABASE:-kb_vector}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      # 首启自动 CREATE EXTENSION vector；已有数据卷不会重跑，需手动执行一次
+      - ./pg-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     environment:
@@ -103,3 +131,4 @@ services:
 volumes:
   mysql-data:
   redis-data:
+  pg-data:

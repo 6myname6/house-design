@@ -42,6 +42,7 @@
 | **装修小圈** | 图文发帖、两级楼中楼评论、帖子/评论独立点赞（UNIQUE 约束防重）、我的帖子、删帖级联清理 |
 | **设计项目** | 5 种预设风格 + 自定义风格要求双输入；项目增删查全程服务端归属校验，404 防枚举探测 |
 | **工程化配套** | 统一上传（扩展名白名单 + UUID 重命名）→ OSS 公网 URL；Swagger 在线接口文档；12 个单元测试全绿 |
+|把装修业务的项目、报价、生成、预约能力抽象成 7 个工具，用 Agent 做多步编排；模型只负责决策，权限、幂等和写操作全部由业务服务兜底，AI 不可用时系统可降级为原有确定性流程|
 
 ## 项目预览
 
@@ -83,6 +84,7 @@
 | 后端 | MySQL 8 / BCrypt | 数据存储 / 密码加密 |
 | 后端 | Spring WebFlux WebClient | 异步调用外部文生图 API |
 | 后端 | LangChain4j 1.0.1-beta6 | 声明式 AI Service + 原生 ChatModel 多模态接入 |
+| 后端 | PostgreSQL 16 + pgvector | 知识库分块向量存储与 HNSW 近似检索（第二数据源） |
 | 后端 | springdoc-openapi / Actuator | Swagger 接口文档 / 健康探针 |
 | 前端 | Vue 3.5 + Vite 5 + Element Plus | SPA 界面 + 组件库 |
 | 前端 | Pinia / Vue Router / Axios | 状态管理 / 路由 / 请求与拦截器封装 |
@@ -90,7 +92,7 @@
 | 前端 | SCSS 设计令牌 | 「编辑杂志 · 建筑工作室」设计体系：纸感米白/墨黑/陶土、衬线展示字 + 细发线分层 |
 | AI | 阿里云百炼 Qwen3-VL-Plus | 户型图视觉识别 + 多模态设计对话（OpenAI 兼容协议） |
 | AI | 阿里云百炼 wanx2.1-t2i-turbo | 逐房间写实效果图生成（DashScope 异步任务，模型名配置化） |
-| 部署 | Docker Compose + Nginx | 五服务编排、静态资源托管、/api 反向代理 |
+| 部署 | Docker Compose + Nginx | 六服务编排、静态资源托管、/api 反向代理 |
 
 ## 快速启动
 
@@ -176,14 +178,16 @@ HouseDesign/
 │       ├── layout / router / stores/ # 主框架布局 / 路由 / Pinia 状态
 │       └── styles/                   # SCSS 设计令牌（杂志风设计体系）
 ├── deploy/                           # 生产部署
-│   ├── docker-compose.yml            # 五服务编排（nginx/backend/mysql/redis/备份）
+│   ├── docker-compose.yml            # 六服务编排（nginx/backend/mysql/redis/postgres/备份）
+│   ├── pg-init/                      # PostgreSQL 初始化脚本（启用 pgvector 扩展）
 │   ├── nginx.conf                    # 静态托管 + /api 反代
 │   └── backup.sh                     # mysqldump 每日备份，保留 7 份
 └── docs/                             # 需求 / 产品 / 接口 / 数据库 / 部署 / 待办
+    ├── kb-corpus/                    # 知识库语料源（风格卡 / 设计规范 / 材料工艺）
     └── images/                       # README 截图与演示视频封面资源
 ```
 
-## 数据库设计（7 张表）
+## 数据库设计（13 张表）
 
 | 表 | 说明 | 关键设计 |
 | --- | --- | --- |
@@ -194,8 +198,14 @@ HouseDesign/
 | `t_post_comment` | 评论 | 两级楼中楼（`parent_id`）+ 图文评论（`images` JSON） |
 | `t_post_like` | 帖子点赞 | `UNIQUE(post_id, user_id)` 防重复赞 |
 | `t_comment_like` | 评论点赞 | `UNIQUE(comment_id, user_id)`，独立于帖子点赞 |
+| `t_ai_session` | AI 会话 | 跨浏览器历史；会话元数据独立于消息正文 |
+| `t_ai_message` | 会话消息 | `role`（user/assistant）+ `content`；`images` JSON |
+| `t_kb_document` | 知识库文档 | 状态机 PENDING→READY；`checksum` 去重、`visibility` 权限隔离 |
+| `t_kb_chunk` | 知识库分块 | `FULLTEXT ... WITH PARSER ngram`；`is_active` 支撑版本切换 |
+| `t_material` | 材料库 | 精确单价与规格，供 Agent 查价工具整行命中 |
+| `t_price_rule` | 计价规则 | `UNIQUE(code, price_tier)`，三档单价支撑报价区间 |
 
-详见 [docs/数据库设计.md](docs/数据库设计.md)（含 Redis 键设计）与 [docs/接口文档.md](docs/接口文档.md)。
+详见 [docs/数据库设计.md](docs/数据库设计.md)（含 Redis 键设计与 PostgreSQL 向量表）与 [docs/接口文档.md](docs/接口文档.md)。
 
 ## 项目文档
 

@@ -72,6 +72,13 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- PostgreSQL 驱动：仅用于 RAG 向量库（pgvector），业务数据仍在 MySQL -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- JWT：jjwt 三件套（api/impl/jackson），0.11.5 需配 secret key >= 256bit -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

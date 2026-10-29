@@ -84,6 +84,15 @@ app:
     timeout-seconds: 300
     memory-ttl-seconds: 86400
 
+  # RAG 知识库（向量侧：PostgreSQL + pgvector；文本权威在 MySQL）
+  rag:
+    vector-store:
+      url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DATABASE:kb_vector}
+      username: ${PG_USERNAME:root}
+      password: ${PG_PASSWORD:123456}
+      maximum-pool-size: 5
+      connection-timeout-ms: 3000
+
   # 生成任务并发锁与超时对账
   generation:
     # 同项目"生成中"Redis 占位 TTL（秒）；任务开跑与每完成一个房间自动续期
