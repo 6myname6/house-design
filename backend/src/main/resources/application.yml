@@ -92,7 +92,22 @@ app:
       password: ${PG_PASSWORD:123456}
       maximum-pool-size: 5
       connection-timeout-ms: 3000
-
+    corpus-import:
+      enabled: ${KB_CORPUS_IMPORT_ENABLED:false}
+      path: ${KB_CORPUS_PATH:../docs/kb-corpus}
+    # RAG向量模型接入
+    embedding:
+      base-url: ${AI_EMBEDDING_BASE_URL:https://ws-7idikrhwlah7yr0a.cn-beijing.maas.aliyuncs.com/compatible-mode/v1}
+      api-key: ${BAILIAN_API_KEY}
+      model: ${AI_EMBEDDING_MODEL:text-embedding-v3}
+      dimension: 1024        # 必须和 pgvector 表的 vector(1024) 一致
+      batch-size: 25         # 单次最多送多少条
+      timeout-seconds: 30
+    chunk:
+      max-chars: 900
+      overlap-chars: 100
+    search:
+      min-score: 0.6
   # 生成任务并发锁与超时对账
   generation:
     # 同项目"生成中"Redis 占位 TTL（秒）；任务开跑与每完成一个房间自动续期

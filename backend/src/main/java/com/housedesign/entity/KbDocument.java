@@ -12,10 +12,14 @@ import lombok.Data;
 /**
  * 知识库文档实体，对应表 t_kb_document。
  *
- * <p>定位：文档的权威元数据，保存在 MySQL。分块正文见 {@link KbChunk}，
- * 向量见 PostgreSQL 的 kb_chunk_vector（可随时重建）。</p>
+ * <p>
+ * 定位：文档的权威元数据，保存在 MySQL。分块正文见 {@link KbChunk}，
+ * 向量见 PostgreSQL 的 kb_chunk_vector（可随时重建）。
+ * </p>
  *
- * <p>表结构见 backend/src/main/resources/db/house_design.sql。</p>
+ * <p>
+ * 表结构见 backend/src/main/resources/db/house_design.sql。
+ * </p>
  */
 @Data
 @TableName("t_kb_document")
@@ -39,6 +43,9 @@ public class KbDocument {
 
     /** 原文件在阿里云 OSS 的公网地址；非文件来源可为空 */
     private String ossUrl;
+
+    /** 纯文本来源的原始正文（source_type=TEXT）；文件来源为空，正文由解析产出 */
+    private String rawContent;
 
     /** 文件 SHA-256（十六进制），用于重复上传检测 */
     private String checksum;

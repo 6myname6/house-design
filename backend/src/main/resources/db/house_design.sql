@@ -1,3 +1,4 @@
+-- Active: 1791947708962@@127.0.0.1@3306@house_design
 -- ============================================================
 -- 筑梦家 · 数据库初始化脚本（house_design 库全量建表）
 -- 用法：启动后端前手动执行一次，或用任一 MySQL 客户端导入
@@ -193,3 +194,6 @@ CREATE TABLE IF NOT EXISTS `t_price_rule` (
     UNIQUE KEY `uk_code_tier` (`code`, `price_tier`),
     KEY `idx_work_type` (`work_type`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '计价规则表';
+
+ALTER TABLE t_kb_document
+ADD COLUMN raw_content LONGTEXT NULL COMMENT '纯文本来源的原始正文（TEXT），供切块与重建索引使用' AFTER oss_url;

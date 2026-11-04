@@ -25,4 +25,28 @@ public class AsyncConfig {
         return executor;
     }
 
+    /**
+     * 知识库入库专用线程池。
+     *
+     * <p>与出图线程池隔离：入库包含 HTTP 调用（Embedding）和双库写入，
+     * 与生成任务抢线程会导致两边都变慢。</p>
+     *
+     * @return 入库线程池，Bean 名 kbExecutor（按字段名注入）
+     */
+    @Bean(name = "kbExecutor")
+    public ThreadPoolTaskExecutor kbExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);// 同时只跑1个入库任务
+        executor.setMaxPoolSize(2);// 积压时最多扩容到2
+        executor.setQueueCapacity(100);// 排队上限
+        executor.setThreadNamePrefix("kb-");// 线程名前缀，日志里可区分
+        // 队列满了抛TaskRejectedException，业务层兜底置 FAILED，避免任务静默丢失
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        // 优雅停机：应用关闭时最多等待 30s，让在跑的入库任务收尾
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
+        executor.initialize();
+        return executor;
+    }
+
 }

@@ -8,11 +8,14 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.housedesign.Service.KbDocumentService;
+import com.housedesign.Service.KbIngestService;
 import com.housedesign.Utils.UserContext;
 import com.housedesign.common.BusinessException;
 import com.housedesign.dto.response.KbDocumentCreateResponse;
@@ -30,8 +33,10 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 知识库文档管理实现。
  *
- * <p>只负责「建记录 + 查状态」，不碰解析、切块与向量化：
- * 那三步由异步入库链路推进，避免占住 HTTP 请求线程。</p>
+ * <p>
+ * 只负责「建记录 + 查状态」，不碰解析、切块与向量化：
+ * 那三步由异步入库链路推进，避免占住 HTTP 请求线程。
+ * </p>
  */
 @Slf4j
 @Service
@@ -42,6 +47,8 @@ public class KbDocumentServiceImpl implements KbDocumentService {
     private static final long MAX_FILE_BYTES = 20L * 1024 * 1024;
 
     private final KbDocumentMapper kbDocumentMapper;
+    /** 入库编排服务：文档创建事务提交后触发异步解析/切块/向量化 */
+    private final KbIngestService kbIngestService;
 
     // ==================== 私有方法 ====================
 
@@ -154,6 +161,7 @@ public class KbDocumentServiceImpl implements KbDocumentService {
         KbSourceType sourceType;
         String fileName = null;
         String fileExt = null;
+        String rawContent = null;   // 仅 TEXT 来源有值，作为异步切块的输入
         String resolvedTitle;
 
         if (hasFile) {
@@ -179,7 +187,8 @@ public class KbDocumentServiceImpl implements KbDocumentService {
                 resolvedTitle = "未命名文档";
             }
         } else {
-            checksum = sha256Hex(text.trim().getBytes(StandardCharsets.UTF_8));
+            rawContent = text.trim();
+            checksum = sha256Hex(rawContent.getBytes(StandardCharsets.UTF_8));
             sourceType = KbSourceType.TEXT;
             resolvedTitle = isBlank(title) ? "未命名文本" : title.trim();
         }
@@ -193,6 +202,7 @@ public class KbDocumentServiceImpl implements KbDocumentService {
         doc.setSourceType(sourceType);
         doc.setFileName(fileName);
         doc.setFileExt(fileExt);
+        doc.setRawContent(rawContent);
         doc.setChecksum(checksum);
         doc.setVisibility(resolvedVisibility);
         // PUBLIC 文档不属于任何个人，owner 必须为 null，否则权限过滤会把它当私有文档
@@ -202,6 +212,14 @@ public class KbDocumentServiceImpl implements KbDocumentService {
         doc.setChunkCount(0);
 
         kbDocumentMapper.insert(doc);
+        // 等事务提交后再投递异步任务：否则线程可能先于提交查不到这条记录，
+        // CAS 领取会返回 0，文档永远停在 PENDING
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    public void afterCommit() {
+                        kbIngestService.submit(doc.getId());
+                    }
+                });
 
         log.info("知识库文档已创建 id={}, title={}, sourceType={}, visibility={}",
                 doc.getId(), doc.getTitle(), sourceType, resolvedVisibility);
