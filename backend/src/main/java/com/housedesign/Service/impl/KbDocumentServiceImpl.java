@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -13,19 +14,23 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.multipart.MultipartFile;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.housedesign.Service.FileStorageService;
 import com.housedesign.Service.KbDocumentService;
 import com.housedesign.Service.KbIngestService;
 import com.housedesign.Utils.UserContext;
 import com.housedesign.common.BusinessException;
+import com.housedesign.common.KbVectorStore;
 import com.housedesign.dto.response.KbDocumentCreateResponse;
 import com.housedesign.dto.response.KbDocumentResponse;
 import com.housedesign.dto.response.PageResult;
+import com.housedesign.entity.KbChunk;
 import com.housedesign.entity.KbDocument;
 import com.housedesign.entity.KbDocumentStatus;
 import com.housedesign.entity.KbSourceType;
 import com.housedesign.entity.KbVisibility;
+import com.housedesign.mapper.KbChunkMapper;
 import com.housedesign.mapper.KbDocumentMapper;
 
 import lombok.RequiredArgsConstructor;
@@ -47,10 +52,18 @@ public class KbDocumentServiceImpl implements KbDocumentService {
     /** 单文件大小上限 20MB，与图片上传口径一致 */
     private static final long MAX_FILE_BYTES = 20L * 1024 * 1024;
 
+    /** 入库中间态：这些状态下任务仍在线程池里，删除或重建会产生孤儿数据 */
+    private static final List<KbDocumentStatus> INGESTING_STATUSES = List.of(
+            KbDocumentStatus.PENDING, KbDocumentStatus.PARSING, KbDocumentStatus.INDEXING);
+
     private final KbDocumentMapper kbDocumentMapper;
     /** 入库编排服务：文档创建事务提交后触发异步解析/切块/向量化 */
     private final KbIngestService kbIngestService;
     private final FileStorageService fileStorageService;
+    /** 分块表：删除文档时同步清理正文 */
+    private final KbChunkMapper kbChunkMapper;
+    /** 向量库：删除文档时同步清理 PG 向量 */
+    private final KbVectorStore kbVectorStore;
 
     // ==================== 私有方法 ====================
 
@@ -122,6 +135,44 @@ public class KbDocumentServiceImpl implements KbDocumentService {
         }
         int dot = fileName.lastIndexOf('.');
         return dot > 0 ? fileName.substring(0, dot) : fileName;
+    }
+
+    /**
+     * 加载可管理文档并校验权限。
+     *
+     * <p>
+     * 只有上传者本人可以重建/删除：系统内置语料（owner 为空）一律拒绝，
+     * 他人的私有文档按 404 处理，不暴露“文档是否存在”。
+     * </p>
+     *
+     * @param id 文档 ID
+     * @return 已通过权限校验的文档实体
+     */
+    private KbDocument loadManageable(Long id) {
+        Long userId = UserContext.getUserId();
+        KbDocument doc = kbDocumentMapper.selectById(id);
+        if (doc == null) {
+            throw new BusinessException(404, "文档不存在");
+        }
+        Long owner = doc.getOwnerUserId();
+        if (owner == null) {
+            throw new BusinessException(403, "系统内置知识库文档不支持该操作");
+        }
+        if (!owner.equals(userId)) {
+            throw new BusinessException(404, "文档不存在");
+        }
+        return doc;
+    }
+
+    /**
+     * 拒绝在入库中间态执行重建或删除：任务仍在跑，此时清数据会留下孤儿分块/向量。
+     *
+     * @param doc 文档实体
+     */
+    private void assertNotIngesting(KbDocument doc) {
+        if (INGESTING_STATUSES.contains(doc.getStatus())) {
+            throw new BusinessException(409, "文档正在入库，请稍后再试");
+        }
     }
 
     // 实体转响应体：刻意不返回 checksum 与 ossUrl，前端无使用场景
@@ -211,8 +262,8 @@ public class KbDocumentServiceImpl implements KbDocumentService {
             doc.setOssUrl(fileStorageService.uploadDocument(file, "kb"));
         }
         doc.setVisibility(resolvedVisibility);
-        // PUBLIC 文档不属于任何个人，owner 必须为 null，否则权限过滤会把它当私有文档
-        doc.setOwnerUserId(resolvedVisibility == KbVisibility.PRIVATE ? userId : null);
+        // 无论公开还是私有都记录上传者：公开只影响"谁能检索"，不影响"谁能管理"
+        doc.setOwnerUserId(userId);
         doc.setStatus(KbDocumentStatus.PENDING);
         doc.setVersion(1);
         doc.setChunkCount(0);
@@ -264,5 +315,53 @@ public class KbDocumentServiceImpl implements KbDocumentService {
 
         List<KbDocumentResponse> records = result.getRecords().stream().map(this::toResponse).toList();
         return new PageResult<>(result.getTotal(), records);
+    }
+
+    @Override
+    @Transactional
+    public KbDocumentResponse reindexKbDocument(Long id) {
+        KbDocument doc = loadManageable(id);
+        // 中间态拒绝：任务还在跑，再提交一份只会争抢同一份分块数据
+        assertNotIngesting(doc);
+
+        int currentVersion = doc.getVersion() == null ? 1 : doc.getVersion();
+        int nextVersion = currentVersion + 1;
+        // CAS：只有版本号和状态都没被别人改过才推进，防止并发重建产生两条任务
+        int updated = kbDocumentMapper.update(null,
+                new LambdaUpdateWrapper<KbDocument>()
+                        .eq(KbDocument::getId, id)
+                        .eq(KbDocument::getVersion, currentVersion)
+                        .eq(KbDocument::getStatus, doc.getStatus())
+                        .set(KbDocument::getVersion, nextVersion)
+                        .set(KbDocument::getStatus, KbDocumentStatus.PENDING)
+                        .set(KbDocument::getErrorMessage, null)
+                        .set(KbDocument::getChunkCount, 0)
+                        .set(KbDocument::getUpdatedAt, LocalDateTime.now()));
+        if (updated == 0) {
+            throw new BusinessException(409, "文档状态已变化，请刷新后重试");
+        }
+        // 与创建一致：等事务提交后再投递，否则异步线程可能查不到新版本号
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    public void afterCommit() {
+                        kbIngestService.submit(id);
+                    }
+                });
+        log.info("知识库文档已重新入库 id={}, version={}->{}", id, currentVersion, nextVersion);
+        return toResponse(kbDocumentMapper.selectById(id));
+    }
+
+    @Override
+    @Transactional
+    public void deleteKbDocument(Long id) {
+        KbDocument doc = loadManageable(id);
+        assertNotIngesting(doc);
+
+        // 先清 PG 向量再删 MySQL：向量只是二级索引，留着孤儿行比丢索引更难排查
+        kbVectorStore.deleteByDocument(id);
+        kbChunkMapper.delete(
+                new LambdaQueryWrapper<KbChunk>().eq(KbChunk::getDocumentId, id));
+        kbDocumentMapper.deleteById(id);
+        log.info("知识库文档已删除 id={}, title={}", id, doc.getTitle());
     }
 }

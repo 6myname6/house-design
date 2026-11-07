@@ -53,7 +53,7 @@ public class KbDocument {
     /** 可见范围：公开知识 / 用户私有资料，检索时必须在 SQL 层过滤 */
     private KbVisibility visibility;
 
-    /** 私有文档归属用户（逻辑外键 → t_user.id）；公开文档为空 */
+    /** 上传者用户（逻辑外键 → t_user.id）；系统内置语料（如 docs/kb-corpus）为空 */
     private Long ownerUserId;
 
     /** 入库状态机：PENDING / PARSING / INDEXING / READY / FAILED */

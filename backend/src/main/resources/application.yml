@@ -106,6 +106,10 @@ app:
     chunk:
       max-chars: 900
       overlap-chars: 100
+    ingest:
+      # 入库中间态超时对账阈值（秒）：超过该时长没有心跳（updated_at 刷新）才判失败
+      # 必须明显大于单批 Embedding 耗时，避免误杀大文档
+      reconcile-stale-seconds: ${KB_RECONCILE_STALE:1800}
     search:
       min-score: 0.72
   # 生成任务并发锁与超时对账

@@ -18,4 +18,10 @@ public interface KbDocumentService {
 
     PageResult<KbDocumentResponse> getKbList(int pageNum, int pageSize, String status);
 
+    // 重建索引：版本号 +1 后重新走解析/切块/向量化，用于失败重试或分块策略调整后刷新
+    KbDocumentResponse reindexKbDocument(Long id);
+
+    // 删除文档：同步清理 MySQL 分块与 PG 向量，仅上传者本人可操作
+    void deleteKbDocument(Long id);
+
 }

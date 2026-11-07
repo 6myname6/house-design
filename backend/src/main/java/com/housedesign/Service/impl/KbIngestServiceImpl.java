@@ -11,6 +11,7 @@ import dev.langchain4j.model.embedding.EmbeddingModel;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -102,17 +103,35 @@ public class KbIngestServiceImpl implements KbIngestService {
     }
 
     /**
+     * 刷新文档的 updated_at，作为“入库任务仍在跑”的存活信号。
+     *
+     * <p>
+     * MySQL 的 ON UPDATE CURRENT_TIMESTAMP 只有行内容变化才触发，
+     * 因此必须显式 set 一次；否则超时对账会把正在向量化的长文档误判为卡死。
+     * </p>
+     *
+     * @param documentId 文档 ID
+     */
+    private void touchUpdatedAt(Long documentId) {
+        kbDocumentMapper.update(null,
+                new LambdaUpdateWrapper<KbDocument>()
+                        .eq(KbDocument::getId, documentId)
+                        .set(KbDocument::getUpdatedAt, LocalDateTime.now()));
+    }
+
+    /**
      * 分批调用 Embedding 模型，把每个分块转成向量。
      *
      * <p>
      * 顺序保证：按 chunks 顺序切批、按返回顺序追加，最终结果与 chunks 一一对应。
      * </p>
      * 
+     * @param documentId    文档 ID，用于每批结束后刷新存活信号
      * @param documentTitle 文档标题，参与入模文本
      * @param chunks        已落库并带自增 id 的分块列表
      * @return 与 chunks 顺序一致的向量列表
      */
-    private List<Embedding> embedAll(String documentTitle, List<KbChunk> chunks) {
+    private List<Embedding> embedAll(Long documentId, String documentTitle, List<KbChunk> chunks) {
         List<Embedding> all = new ArrayList<>(chunks.size());
         // 每批最多 batchSize 条，避免单次请求体过大或触发接口限流
         for (int from = 0; from < chunks.size(); from += batchSize) {
@@ -123,6 +142,8 @@ public class KbIngestServiceImpl implements KbIngestService {
                     .toList();
             // content() 为响应中的向量列表，顺序与 segments 一致
             all.addAll(embeddingModel.embedAll(segments).content());
+            // 每批结束刷新存活时间，避免大文档在向量化阶段被超时对账误杀
+            touchUpdatedAt(documentId);
         }
         return all;
     }
@@ -226,7 +247,6 @@ public class KbIngestServiceImpl implements KbIngestService {
                 case URL:
                     throw new IllegalStateException("URL来源解析待实现");
             }
-
             if (rawContent == null || rawContent.isBlank()) {
                 throw new IllegalStateException("无法切块");
             }
@@ -237,6 +257,11 @@ public class KbIngestServiceImpl implements KbIngestService {
                 throw new IllegalStateException("切块结果为空");
             }
             // 2. 草稿转实体并批量写入 MySQL 分块表（chunk_no 决定检索时的顺序）
+            // 同一版本可能是失败后重跑：先清掉该版本残留分块，否则会撞 uk_doc_ver_chunk 唯一键
+            kbChunkMapper.delete(
+                    new LambdaQueryWrapper<KbChunk>()
+                            .eq(KbChunk::getDocumentId, documentId)
+                            .eq(KbChunk::getVersion, version));
             List<KbChunk> chunks = new ArrayList<>(drafts.size());
             for (int i = 0; i < drafts.size(); i++) {
                 KbTextChunker.ChunkDraft draft = drafts.get(i);
@@ -261,11 +286,25 @@ public class KbIngestServiceImpl implements KbIngestService {
                             .eq(KbChunk::getVersion, version)
                             .eq(KbChunk::getIsActive, true)
                             .orderByAsc(KbChunk::getChunkNo));
-            // 4. 批量计算向量（按批调用 Embedding 接口，顺序与 saved 一致）
-            List<Embedding> embeddings = embedAll(doc.getTitle(), saved);
-            // 5. 写 PG：先删同版本旧向量再插，保证同版本重跑幂等
+            // 4. 进入向量化阶段：状态置 INDEXING 并刷新 updated_at，便于前端区分“解析”和“建索引”
+            kbDocumentMapper.update(null,
+                    new LambdaUpdateWrapper<KbDocument>()
+                            .eq(KbDocument::getId, documentId)
+                            .set(KbDocument::getStatus, KbDocumentStatus.INDEXING)
+                            .set(KbDocument::getUpdatedAt, LocalDateTime.now()));
+            // 5. 批量计算向量（按批调用 Embedding 接口，顺序与 saved 一致）
+            List<Embedding> embeddings = embedAll(documentId, doc.getTitle(), saved);
+            // 6. 写 PG：先删同版本旧向量再插，保证同版本重跑幂等
             kbVectorStore.replace(documentId, version, saved, embeddings, embeddingModelName);
-            // 6. 所有数据就绪后才置 READY（READY 表示已可被检索）
+            // 7. 重建索引成功后才清理历史版本：旧分块置 inactive、旧向量删除，避免重复召回
+            kbChunkMapper.update(null,
+                    new LambdaUpdateWrapper<KbChunk>()
+                            .eq(KbChunk::getDocumentId, documentId)
+                            .ne(KbChunk::getVersion, version)
+                            .eq(KbChunk::getIsActive, true)
+                            .set(KbChunk::getIsActive, false));
+            kbVectorStore.deleteVersionsExcept(documentId, version);
+            // 8. 所有数据就绪后才置 READY（READY 表示已可被检索）
             kbDocumentMapper.update(
                     new LambdaUpdateWrapper<KbDocument>()
                             .eq(KbDocument::getId, documentId)

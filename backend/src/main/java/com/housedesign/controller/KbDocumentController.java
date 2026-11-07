@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
@@ -53,6 +54,21 @@ public class KbDocumentController {
     public Result<KbDocumentResponse> getkbDetail(@PathVariable("id") Long id) {
         log.info("查看id={}的知识库详情", id);
         return Result.success(kbDocumentService.getKbDetail(id));
+    }
+
+    // 重建索引：版本号 +1 后重新解析/切块/向量化，失败文档也用它重试
+    @PostMapping("/{id}/reindex")
+    public Result<KbDocumentResponse> reindexKbDocument(@PathVariable("id") Long id) {
+        log.info("重建知识库文档索引 id={}", id);
+        return Result.success(kbDocumentService.reindexKbDocument(id));
+    }
+
+    // 删除文档：同步清理分块与向量，仅上传者本人可操作
+    @DeleteMapping("/{id}")
+    public Result<Void> deleteKbDocument(@PathVariable("id") Long id) {
+        log.info("删除知识库文档 id={}", id);
+        kbDocumentService.deleteKbDocument(id);
+        return Result.success();
     }
 
     // 查询文档列表

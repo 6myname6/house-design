@@ -61,6 +61,28 @@ public class KbVectorStore {
     }
 
     /**
+     * 删除某文档的全部向量（文档删除时调用）。
+     *
+     * @param documentId 文档 ID
+     */
+    public void deleteByDocument(Long documentId) {
+        pgVectorJdbcTemplate.update(
+                "DELETE FROM kb_chunk_vector WHERE document_id = ?", documentId);
+    }
+
+    /**
+     * 删除某文档除指定版本外的历史向量（重建索引成功后调用）。
+     *
+     * @param documentId  文档 ID
+     * @param keepVersion 需要保留的版本号（当前生效版本）
+     */
+    public void deleteVersionsExcept(Long documentId, int keepVersion) {
+        pgVectorJdbcTemplate.update(
+                "DELETE FROM kb_chunk_vector WHERE document_id = ? and version <> ?",
+                documentId, keepVersion);
+    }
+
+    /**
      * 把 float[] 转成 pgvector 的文本输入格式，例如 {@code [0.1,0.2,0.3]}。
      *
      * @param vector 1024 维浮点数组
