@@ -23,4 +23,8 @@ public interface FileStorageService {
     // 把外部URL的图片转存到本公司存储，返回可公开访问的URL
     String downloadFromUrl(String url, String dir);
 
+    String uploadDocument(MultipartFile file, String dir);
+
+    byte[] downloadDocument(String url);
+
 }

@@ -42,6 +42,17 @@ class AbstractFileStorageServiceDownloadTest {
             return null;
         }
 
+        // 知识库文档入口：本测试只验证图片下载防线，文档方法给空实现即可
+        @Override
+        public String uploadDocument(MultipartFile file, String dir) {
+            return null;
+        }
+
+        @Override
+        public byte[] downloadDocument(String url) {
+            return downloadDocumentBytes(url);
+        }
+
         byte[] download(String url) {
             return downloadBytes(url);
         }

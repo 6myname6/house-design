@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.housedesign.Service.FileStorageService;
 import com.housedesign.Service.KbDocumentService;
 import com.housedesign.Service.KbIngestService;
 import com.housedesign.Utils.UserContext;
@@ -49,6 +50,7 @@ public class KbDocumentServiceImpl implements KbDocumentService {
     private final KbDocumentMapper kbDocumentMapper;
     /** 入库编排服务：文档创建事务提交后触发异步解析/切块/向量化 */
     private final KbIngestService kbIngestService;
+    private final FileStorageService fileStorageService;
 
     // ==================== 私有方法 ====================
 
@@ -161,7 +163,7 @@ public class KbDocumentServiceImpl implements KbDocumentService {
         KbSourceType sourceType;
         String fileName = null;
         String fileExt = null;
-        String rawContent = null;   // 仅 TEXT 来源有值，作为异步切块的输入
+        String rawContent = null; // 仅 TEXT 来源有值，作为异步切块的输入
         String resolvedTitle;
 
         if (hasFile) {
@@ -179,6 +181,7 @@ public class KbDocumentServiceImpl implements KbDocumentService {
             }
             // 内容算哈希
             checksum = sha256Hex(fileBytes);
+
             fileName = file.getOriginalFilename();
             fileExt = extOf(fileName);
             sourceType = KbSourceType.FILE;
@@ -204,6 +207,9 @@ public class KbDocumentServiceImpl implements KbDocumentService {
         doc.setFileExt(fileExt);
         doc.setRawContent(rawContent);
         doc.setChecksum(checksum);
+        if (sourceType == KbSourceType.FILE) {
+            doc.setOssUrl(fileStorageService.uploadDocument(file, "kb"));
+        }
         doc.setVisibility(resolvedVisibility);
         // PUBLIC 文档不属于任何个人，owner 必须为 null，否则权限过滤会把它当私有文档
         doc.setOwnerUserId(resolvedVisibility == KbVisibility.PRIVATE ? userId : null);

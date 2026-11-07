@@ -21,12 +21,13 @@ import org.springframework.stereotype.Service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.housedesign.Service.FileStorageService;
 import com.housedesign.Service.KbIngestService;
 import com.housedesign.Utils.KbTextChunker;
+import com.housedesign.Utils.KbTextExtractor;
 import com.housedesign.entity.KbChunk;
 import com.housedesign.entity.KbDocument;
 import com.housedesign.entity.KbDocumentStatus;
-import com.housedesign.entity.KbSourceType;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,7 +41,7 @@ import lombok.extern.slf4j.Slf4j;
  * </p>
  *
  * <p>
- * 当前只处理 source_type=TEXT 的文档；文件解析（Tika）尚未接入。
+ * TEXT 直读 / FILE 下载后 Tika 解析 / URL 待实现。
  * 方法刻意不加事务：内部包含耗时的 Embedding HTTP 调用，且 MySQL 与 PG 是两个数据源，
  * 无法同事务，一致性靠「状态机 + 版本号 + 先删后插」兜底。
  * </p>
@@ -59,6 +60,9 @@ public class KbIngestServiceImpl implements KbIngestService {
     private final KbVectorStore kbVectorStore;
     /** 百炼 text-embedding-v3 客户端 */
     private final EmbeddingModel embeddingModel;
+    // 文档解析器
+    private final KbTextExtractor kbTextExtractor;
+    private final FileStorageService fileStorageService;
 
     /** 单块最大字符数（app.rag.chunk.max-chars） */
     @Value("${app.rag.chunk.max-chars}")
@@ -209,12 +213,20 @@ public class KbIngestServiceImpl implements KbIngestService {
             if (doc == null) {
                 throw new IllegalStateException("文档不存在：" + documentId);
             }
-            // 一期只支持纯文本；文件来源需要先下载 OSS 原文再用 Tika 解析
-            if (doc.getSourceType() != KbSourceType.TEXT) {
-                throw new IllegalStateException("当前仅支持 text 入库，文件解析待实现");
+            // TEXT直接取落库文档；FILE从oss拉回源文件，再Tika解析
+            String rawContent = null;
+            switch (doc.getSourceType()) {
+                case TEXT:
+                    rawContent = doc.getRawContent();
+                    break;
+                case FILE:
+                    rawContent = kbTextExtractor.extract(doc.getFileExt(),
+                            fileStorageService.downloadDocument(doc.getOssUrl()));
+                    break;
+                case URL:
+                    throw new IllegalStateException("URL来源解析待实现");
             }
-            // 纯文本原文；文件来源此列为空
-            String rawContent = doc.getRawContent();
+
             if (rawContent == null || rawContent.isBlank()) {
                 throw new IllegalStateException("无法切块");
             }

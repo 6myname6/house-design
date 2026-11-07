@@ -135,4 +135,36 @@ public class OssFileStorageServiceImpl extends AbstractFileStorageService {
         metadata.setCacheControl("public, max-age=31536000");
         return metadata;
     }
+
+    /**
+     * (non-Javadoc)
+     * 针对‘知识库文档’上传文件（复用upload）
+     * 
+     * @see com.housedesign.Service.FileStorageService#uploadDocument(org.springframework.web.multipart.MultipartFile,
+     *      java.lang.String)
+     */
+    @Override
+    public String uploadDocument(MultipartFile file, String dir) {
+        // 1.校验扩展名 + UUID 重命名（复用基类规则）
+        String original = file.getOriginalFilename();
+        String storedName = documentBuildStoredName(original);
+        // 2.Object Key：OSS 里没有"目录"，dir/ 只是 key 的前缀，控制台会按 / 展示成文件夹
+        String key = dir + "/" + storedName;
+
+        try (InputStream in = file.getInputStream()) {
+            ossClient.putObject(bucket, key, in, buildMetadata(storedName, file.getSize()));
+        } catch (Exception e) {
+            log.error("OSS 上传失败：{}", original, e);
+            throw new IllegalStateException("文件上传失败，请稍后重试", e);
+        }
+
+        String url = publicBaseUrl + "/" + key;
+        log.info("文件上传成功：{}->{}", original, url);
+        return url;
+    }
+
+    @Override
+    public byte[] downloadDocument(String url) {
+        return downloadDocumentBytes(url);
+    }
 }

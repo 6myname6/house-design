@@ -27,7 +27,9 @@ public abstract class AbstractFileStorageService implements FileStorageService {
 
     // 白名单：只允许图片扩展名，防止被上传 .js/.html 之类的可执行内容
     protected static final Set<String> ALLOWED_EXTENSIONS = Set.of("jpg", "jpeg", "png", "gif", "webp");
-
+    // 知识库文档白名单：与 Controller 接受的上传类型保持一致，杜绝可执行文件
+    protected static final Set<String> DOCUMENT_EXTENSIONS = Set.of("pdf", "doc", "docx", "md", "markdown", "txt",
+            "html", "htm");
     // 扩展名 -> MIME：OSS 必须手工塞进 ObjectMetadata，
     // 否则浏览器拿到 application/octet-stream 会把图片当成附件下载而不是直接显示
     private static final Map<String, String> CONTENT_TYPES = Map.of(
@@ -70,6 +72,20 @@ public abstract class AbstractFileStorageService implements FileStorageService {
     }
 
     /**
+     * 针对知‘识库文档’，取扩展名并校验白名单，不合法直接抛异常。
+     *
+     * @param fileName 原始文件名或 URL 路径
+     * @return 小写扩展名（已在白名单内）
+     */
+    protected String documentRequireAllowedExtension(String fileName) {
+        String extension = getExtension(fileName);
+        if (!DOCUMENT_EXTENSIONS.contains(extension)) {
+            throw new IllegalArgumentException("仅支持 pdf/doc/docx/md/txt/html 格式文档");
+        }
+        return extension;
+    }
+
+    /**
      * 按原始文件名生成落库用的新名字：UUID + 原扩展名。
      *
      * 三个作用：①防止同名覆盖 ②规避中文/特殊字符乱码 ③杜绝路径穿越（原文件名不参与拼路径）
@@ -79,6 +95,19 @@ public abstract class AbstractFileStorageService implements FileStorageService {
      */
     protected String buildStoredName(String originalFileName) {
         String extension = requireAllowedExtension(originalFileName);
+        return UUID.randomUUID() + "." + extension;
+    }
+
+    /**
+     * 针对‘知识库文档’，按原始文件名生成落库用的新名字：UUID + 原扩展名。
+     *
+     * 三个作用：①防止同名覆盖 ②规避中文/特殊字符乱码 ③杜绝路径穿越（原文件名不参与拼路径）
+     *
+     * @param originalFileName 原始文件名（可来自上传，也可来自外部 URL 的最后一段）
+     * @return 形如 3f2a...c1.png
+     */
+    protected String documentBuildStoredName(String originalFileName) {
+        String extension = documentRequireAllowedExtension(originalFileName);
         return UUID.randomUUID() + "." + extension;
     }
 
@@ -123,6 +152,34 @@ public abstract class AbstractFileStorageService implements FileStorageService {
             log.warn("下载图片超出字节上限：{} > {}，url={}", bytes.length, maxDownloadBytes, url);
             throw new IllegalStateException(
                     "图片超出大小限制（" + (maxDownloadBytes / 1024 / 1024) + "MB）");
+        }
+        return bytes;
+    }
+
+    protected byte[] downloadDocumentBytes(String url) {
+        ResponseEntity<byte[]> response;
+        try {
+            // 用 java.net.URI 重载：String 重载会走 UriTemplate 再编码，把签名里的 %2F 变 %252F 导致 OSS 403
+            response = HTTP.get().uri(URI.create(url)).retrieve()
+                    .toEntity(byte[].class)
+                    .block(Duration.ofSeconds(60));
+        } catch (WebClientResponseException e) {
+            // 上游明确返回 4xx/5xx（含图片临时链接失效 404）
+            log.warn("下载外部知识库文档失败：HTTP {}，url={}", e.getStatusCode().value(), url);
+            throw new IllegalStateException("知识库文档下载失败（HTTP " + e.getStatusCode().value() + "），请稍后重试", e);
+        } catch (RuntimeException e) {
+            // 连接失败/读超时/响应超 20MB 解码上限（DataBufferLimitException）都落这里
+            log.warn("下载知识库文档异常：url={}", url, e);
+            throw new IllegalStateException("知识库文档下载失败或文档过大，请稍后重试", e);
+        }
+        if (response == null || response.getBody() == null || response.getBody().length == 0) {
+            throw new IllegalStateException("下载内容为空：" + url);
+        }
+        byte[] bytes = response.getBody();
+        if (bytes.length > maxDownloadBytes) {
+            log.warn("下载知识库文档超出字节上限：{} > {}，url={}", bytes.length, maxDownloadBytes, url);
+            throw new IllegalStateException(
+                    "知识库文档超出大小限制（" + (maxDownloadBytes / 1024 / 1024) + "MB）");
         }
         return bytes;
     }
