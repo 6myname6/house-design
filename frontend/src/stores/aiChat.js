@@ -16,7 +16,7 @@ function createSession() {
   return {
     id: `s-${now}-${Math.random().toString(36).slice(2, 8)}`,
     title: '', // 取首条用户消息前若干字，供将来历史会话列表展示
-    messages: [], // { id, role, content, images, pending, error }
+    messages: [], // { id, role, content, images, pending, error, citations }
     serverConversationId: '', // 后端 Redis 记忆会话 id，仅纯文本多轮对话使用
     createdAt: now,
     updatedAt: now

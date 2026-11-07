@@ -101,6 +101,17 @@
               class="bubble-text markdown-body"
               v-html="renderMarkdown(m.content)"
             ></div>
+            <!-- 知识库出处：仅当后端返回 citations 时展示，编号与回答里的 [S1]…[Sn] 对应 -->
+            <div v-if="m.citations && m.citations.length" class="citation-list">
+              <p class="citation-kicker">出处 / Sources</p>
+              <div v-for="(c, ci) in m.citations" :key="`${m.id}-${ci}`" class="citation-item">
+                <span class="citation-no">S{{ ci + 1 }}</span>
+                <span class="citation-main">
+                  <span class="citation-title">{{ c.title }}</span>
+                  <span v-if="c.heading" class="citation-heading">{{ c.heading }}</span>
+                </span>
+              </div>
+            </div>
             <!-- AI 正在输入 -->
             <div v-if="m.pending" class="typing" aria-label="AI 正在输入">
               <span></span><span></span><span></span>
@@ -307,7 +318,7 @@ async function onSend() {
   const userMsg = { id: nextId(), role: 'user', content: question, images: imageUrls, pending: false }
   // aiMsg 必须用 reactive 包裹：push 进 store 后，requestAi 里对它的 content/pending 赋值
   // 要能触发响应式更新与 deep watch 落盘——裸对象赋值会绕过代理，导致回答已到达但界面冻结在加载态
-  const aiMsg = reactive({ id: nextId(), role: 'assistant', content: '', images: [], pending: true, error: '' })
+  const aiMsg = reactive({ id: nextId(), role: 'assistant', content: '', images: [], pending: true, error: '', citations: [] })
   aiStore.ensureSession()
   messages.value.push(userMsg, aiMsg)
   aiStore.touch(question) // 首条用户消息作为会话标题，并刷新 updatedAt
@@ -329,17 +340,20 @@ async function retry(index) {
   aiMsg.error = ''
   aiMsg.pending = true
   aiMsg.content = ''
+  aiMsg.citations = []
   sending.value = true
   await requestAi(userMsg.content || '', userMsg.images || [], aiMsg)
 }
 
 async function requestAi(question, images, aiMsg) {
   try {
-    // 所有链路统一携带会话 id（图文也走记忆），响应统一为 {conversationId, answer}
+    // 所有链路统一携带会话 id（图文也走记忆），响应统一为 {conversationId, answer, citations}
     const data = await chatWithAi({ question, images, conversationId: conversationId.value })
     // 保存后端会话 id 到当前会话，供后续轮次回传（watch 自动持久化）
     if (aiStore.currentSession) aiStore.currentSession.serverConversationId = data.conversationId
     aiMsg.content = data.answer
+    // 无命中或纯图对话时后端返回空数组，这里统一兜底成数组，模板可直接遍历
+    aiMsg.citations = data.citations || []
   } catch (err) {
     aiMsg.error = err?.response?.data?.message || 'AI 暂时开小差了，请稍后重试'
   } finally {
@@ -800,6 +814,53 @@ onUnmounted(() => {
   border-radius: var(--hd-radius-base);
   cursor: zoom-in;
   border: 1px solid var(--hd-neutral-200);
+}
+
+/* AI 回复的出处清单：细发线分隔，等宽编号，视觉上不抢正文 */
+.citation-list {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hd-neutral-200);
+}
+.citation-kicker {
+  margin: 0 0 8px;
+  font-family: var(--hd-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hd-neutral-500);
+}
+.citation-item {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 0;
+}
+.citation-no {
+  flex: none;
+  font-family: var(--hd-font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 1px 4px;
+  border: 1px solid var(--hd-primary-200);
+  border-radius: 3px;
+  color: var(--hd-primary-600);
+}
+.citation-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--hd-primary-900);
+}
+.citation-heading {
+  font-size: 12px;
+  color: var(--hd-neutral-500);
+}
+.citation-heading::before {
+  content: '·';
+  margin-right: 6px;
 }
 
 /* AI 正在输入三点：陶土 */

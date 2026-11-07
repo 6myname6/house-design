@@ -107,7 +107,7 @@ app:
       max-chars: 900
       overlap-chars: 100
     search:
-      min-score: 0.6
+      min-score: 0.72
   # 生成任务并发锁与超时对账
   generation:
     # 同项目"生成中"Redis 占位 TTL（秒）；任务开跑与每完成一个房间自动续期

@@ -39,3 +39,6 @@ deploy/backups/
 docs/知识库/
 
 docs/bug优化/
+
+# RAG 升级方案（本地规划稿，停止跟踪）
+docs/AI-Agent与RAG升级方案.md

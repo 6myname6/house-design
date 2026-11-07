@@ -103,18 +103,19 @@ public class KbIngestServiceImpl implements KbIngestService {
      * <p>
      * 顺序保证：按 chunks 顺序切批、按返回顺序追加，最终结果与 chunks 一一对应。
      * </p>
-     *
-     * @param chunks 已落库并带自增 id 的分块列表
+     * 
+     * @param documentTitle 文档标题，参与入模文本
+     * @param chunks        已落库并带自增 id 的分块列表
      * @return 与 chunks 顺序一致的向量列表
      */
-    private List<Embedding> embedAll(List<KbChunk> chunks) {
+    private List<Embedding> embedAll(String documentTitle, List<KbChunk> chunks) {
         List<Embedding> all = new ArrayList<>(chunks.size());
         // 每批最多 batchSize 条，避免单次请求体过大或触发接口限流
         for (int from = 0; from < chunks.size(); from += batchSize) {
             int to = Math.min(chunks.size(), from + batchSize);
             // 入模文本 = 标题 + 正文（标题提升召回，但不落库）
             List<TextSegment> segments = chunks.subList(from, to).stream()
-                    .map(chunk -> TextSegment.from(embedText(chunk)))
+                    .map(chunk -> TextSegment.from(embedText(documentTitle, chunk)))
                     .toList();
             // content() 为响应中的向量列表，顺序与 segments 一致
             all.addAll(embeddingModel.embedAll(segments).content());
@@ -126,14 +127,17 @@ public class KbIngestServiceImpl implements KbIngestService {
      * 组装送入 Embedding 模型的文本。
      *
      * <p>
-     * 带上章节标题可以提升召回；入库只保存正文，标题单独存 t_kb_chunk.heading。
+     * 文档标题是“风格名“唯一强信号，带上章节标题可以提升召回；入库只保存正文，标题单独存 t_kb_chunk.heading。
      * </p>
-     *
-     * @param chunk 分块（标题可能为 null）
+     * 
+     * @param documentTitle 文档标题
+     * @param chunk         分块（标题可能为 null）
      * @return 入模文本
      */
-    private String embedText(KbChunk chunk) {
-        return chunk.getHeading() == null ? chunk.getContent() : chunk.getHeading() + "\n" + chunk.getContent();
+    private String embedText(String documentTitle, KbChunk chunk) {
+        // 返回：文档标题+章节标题+正文
+        return documentTitle + "\n" + (chunk.getHeading() == null ? "" : chunk.getHeading() + "\n")
+                + chunk.getContent();
     }
 
     /**
@@ -246,7 +250,7 @@ public class KbIngestServiceImpl implements KbIngestService {
                             .eq(KbChunk::getIsActive, true)
                             .orderByAsc(KbChunk::getChunkNo));
             // 4. 批量计算向量（按批调用 Embedding 接口，顺序与 saved 一致）
-            List<Embedding> embeddings = embedAll(saved);
+            List<Embedding> embeddings = embedAll(doc.getTitle(), saved);
             // 5. 写 PG：先删同版本旧向量再插，保证同版本重跑幂等
             kbVectorStore.replace(documentId, version, saved, embeddings, embeddingModelName);
             // 6. 所有数据就绪后才置 READY（READY 表示已可被检索）
