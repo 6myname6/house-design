@@ -101,7 +101,8 @@ app:
       api-key: ${BAILIAN_API_KEY}
       model: ${AI_EMBEDDING_MODEL:text-embedding-v3}
       dimension: 1024        # 必须和 pgvector 表的 vector(1024) 一致
-      batch-size: 25         # 单次最多送多少条
+      # 百炼 text-embedding-v3 单次请求最多 10 条，超过会报 InvalidParameter（batch size is invalid）
+      batch-size: ${AI_EMBEDDING_BATCH_SIZE:10}
       timeout-seconds: 30
     chunk:
       max-chars: 900
@@ -112,6 +113,17 @@ app:
       reconcile-stale-seconds: ${KB_RECONCILE_STALE:1800}
     search:
       min-score: 0.72
+      keyword-top-k: 20 #关键词召回条数
+      keyword-cosine-floor: 0.55 #关键词候选余弦下限
+      vector-top-k: 20 #向量召回条数
+      rerank-min-score: 0.21
+      rerank-candidates: 20
+    rerank:
+      enabled: ${AI_RERANK_ENABLED:true}
+      base-url: ${AI_RERANK_BASE_URL:https://ws-7idikrhwlah7yr0a.cn-beijing.maas.aliyuncs.com/api/v1}
+      api-key: ${BAILIAN_API_KEY}
+      model: ${AI_RERANK_MODEL:gte-rerank-v2}
+      timeout-seconds: ${AI_RERANK_TIMEOUT:10}
   # 生成任务并发锁与超时对账
   generation:
     # 同项目"生成中"Redis 占位 TTL（秒）；任务开跑与每完成一个房间自动续期

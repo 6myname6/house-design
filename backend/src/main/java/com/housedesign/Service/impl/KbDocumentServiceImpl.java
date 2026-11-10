@@ -21,7 +21,7 @@ import com.housedesign.Service.KbDocumentService;
 import com.housedesign.Service.KbIngestService;
 import com.housedesign.Utils.UserContext;
 import com.housedesign.common.BusinessException;
-import com.housedesign.common.KbVectorStore;
+import com.housedesign.common.kb.KbVectorStore;
 import com.housedesign.dto.response.KbDocumentCreateResponse;
 import com.housedesign.dto.response.KbDocumentResponse;
 import com.housedesign.dto.response.PageResult;

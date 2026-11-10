@@ -1,4 +1,4 @@
-package com.housedesign.common;
+package com.housedesign.common.kb;
 
 import java.util.List;
 

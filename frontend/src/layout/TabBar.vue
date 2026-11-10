@@ -33,11 +33,12 @@ import { useRoute } from 'vue-router'
 
 const route = useRoute()
 
-// 01 首页 / 02 小圈 / 03 问问AI / 04 我的
+// 01 首页 / 02 小圈 / 03 问问AI / 04 知识库 / 05 我的
 const tabs = [
   { path: '/projects', label: '首页' },
   { path: '/community', label: '小圈' },
   { path: '/ai-chat', label: '问问AI' },
+  { path: '/knowledge', label: '知识库' },
   { path: '/profile', label: '我的' }
 ]
 

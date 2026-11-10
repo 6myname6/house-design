@@ -1,8 +1,10 @@
-package com.housedesign.common;
+package com.housedesign.common.kb;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -60,6 +62,26 @@ public class KbVectorSearcher {
         return pgVectorJdbcTemplate.query(sql, args.toArray(),
                 (rs, rowNum) -> new Candidate(rs.getLong("chunk_id"),
                         rs.getLong("document_id"), rs.getDouble("score")));
+    }
+
+    // 关键词候选没有向量分：按chunk_id批量回查余弦，供余弦下限过滤和统一
+    public Map<Long, Double> scoresByChunkIds(float[] vector, List<Long> chunkIds) {
+        if (chunkIds == null || chunkIds.isEmpty()) {
+            return Map.of();
+        }
+        String ph = String.join(",", Collections.nCopies(chunkIds.size(), "?"));
+        String sql = "select chunk_id,1-(embedding<=>cast(? as vector)) as score " +
+                "from kb_chunk_vector where chunk_id in(" + ph + ")";
+        String literal = KbVectorStore.toLiteral(vector);
+        List<Object> args = new ArrayList<>();
+        args.add(literal);
+        args.addAll(chunkIds);
+        Map<Long, Double> scores = new HashMap<>(chunkIds.size());
+        pgVectorJdbcTemplate.query(sql, args.toArray(), (rs) -> {
+            scores.put(rs.getLong("chunk_id"), rs.getDouble("score"));
+        });
+        return scores;
+
     }
 
 }

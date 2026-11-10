@@ -1,11 +1,11 @@
 package com.housedesign.Service.impl;
 
-import com.housedesign.common.KbVectorStore;
 import com.housedesign.mapper.KbChunkMapper;
 import com.housedesign.mapper.KbDocumentMapper;
 
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
+import dev.langchain4j.exception.HttpException;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 
 import java.nio.charset.StandardCharsets;
@@ -26,6 +26,7 @@ import com.housedesign.Service.FileStorageService;
 import com.housedesign.Service.KbIngestService;
 import com.housedesign.Utils.KbTextChunker;
 import com.housedesign.Utils.KbTextExtractor;
+import com.housedesign.common.kb.KbVectorStore;
 import com.housedesign.entity.KbChunk;
 import com.housedesign.entity.KbDocument;
 import com.housedesign.entity.KbDocumentStatus;
@@ -141,7 +142,16 @@ public class KbIngestServiceImpl implements KbIngestService {
                     .map(chunk -> TextSegment.from(embedText(documentTitle, chunk)))
                     .toList();
             // content() 为响应中的向量列表，顺序与 segments 一致
-            all.addAll(embeddingModel.embedAll(segments).content());
+            try {
+                all.addAll(embeddingModel.embedAll(segments).content());
+            } catch (HttpException e) {
+                // 上游报文是一整段 JSON，落库只保留可读原因；完整堆栈交给日志
+                // 典型场景：单批超过 10 条（batch size is invalid）或模型名/Key 配置错误
+                log.error("文档{}向量化失败，第{}批（{}条），上游返回 HTTP {}",
+                        documentId, from / batchSize + 1, segments.size(), e.statusCode(), e);
+                throw new IllegalStateException("向量化失败：嵌入服务返回 HTTP " + e.statusCode()
+                        + "，请检查 embedding 批量大小与模型配置", e);
+            }
             // 每批结束刷新存活时间，避免大文档在向量化阶段被超时对账误杀
             touchUpdatedAt(documentId);
         }

@@ -23,4 +23,7 @@ public class KbSearchHit {
     private String content;
 
     private double score;
+    /** Rerank相关度，0-1，未启用或降级时为null */
+    private Double rerankScore;
+
 }

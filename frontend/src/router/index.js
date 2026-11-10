@@ -51,6 +51,12 @@ const routes = [
     component: () => import('../views/AiChat.vue')
   },
   {
+    // 知识库管理页：上传文档、查看入库状态、重建索引与删除
+    path: '/knowledge',
+    name: 'KnowledgeBase',
+    component: () => import('../views/KnowledgeBase.vue')
+  },
+  {
     path: '/profile',
     name: 'Profile',
     component: () => import('../views/Profile.vue')

@@ -8,6 +8,10 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 
+/**
+ * 基于Redis的原子计数器
+ * RedisAtomicCounter
+ */
 @Component
 @RequiredArgsConstructor
 public class RedisAtomicCounter {
@@ -20,6 +24,13 @@ public class RedisAtomicCounter {
                     "return count",
             Long.class);
 
+    /**
+     * 基于Redis的原子计数器，支持设置过期时间
+     * 
+     * @param key
+     * @param ttlSeconds
+     * @return
+     */
     public long incrWithTtl(String key, long ttlSeconds) {
         return stringRedisTemplate.execute(script, Collections.singletonList(key), String.valueOf(ttlSeconds));
     }
