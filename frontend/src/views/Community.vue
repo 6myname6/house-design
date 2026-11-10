@@ -191,9 +191,16 @@
         </div>
       </article>
 
-      <!-- 加载更多 -->
-      <div v-if="hasMore" class="load-more">
-        <el-button plain :loading="loadingMore" @click="loadMore">加载更多</el-button>
+      <!-- 页码分页 -->
+      <div v-if="total > pageSize" class="pagination">
+        <el-pagination
+          background
+          layout="prev, pager, next, total"
+          :total="total"
+          :page-size="pageSize"
+          :current-page="pageNum"
+          @current-change="onPageChange"
+        />
       </div>
     </div>
 
@@ -264,8 +271,8 @@ function visibleImages(images) {
 const loadError = ref(false)
 const pageNum = ref(1)
 const pageSize = 20
-const hasMore = ref(false)
-const loadingMore = ref(false)
+// 帖子总条数（驱动页码分页）
+const total = ref(0)
 
 const publishVisible = ref(false)
 const publishing = ref(false)
@@ -283,7 +290,7 @@ async function load() {
   loadError.value = false
   brokenImages.value = new Set() // 重新加载时重置裂图标记
   try {
-    await fetchPage(1, false)
+    await fetchPage(1)
   } catch {
     loadError.value = true
   } finally {
@@ -291,21 +298,24 @@ async function load() {
   }
 }
 
-async function loadMore() {
-  loadingMore.value = true
+// 页码切换：直接替换当前页数据
+async function onPageChange(page) {
+  loading.value = true
+  brokenImages.value = new Set()
   try {
-    await fetchPage(pageNum.value + 1, true)
+    await fetchPage(page)
+  } catch {
+    // 翻页失败保留原列表，不把整页切成错误态
   } finally {
-    loadingMore.value = false
+    loading.value = false
   }
 }
 
-async function fetchPage(page, append) {
+async function fetchPage(page) {
   const res = await listPosts(page, pageSize)
-  const records = res.records || []
-  posts.value = append ? [...posts.value, ...records] : records
+  posts.value = res.records || []
+  total.value = res.total || 0
   pageNum.value = page
-  hasMore.value = posts.value.length < res.total
 }
 
 function formatTime(t) {
@@ -355,6 +365,11 @@ async function onDeletePost(p) {
   await deletePost(p.id)
   ElMessage.success('已删除')
   posts.value = posts.value.filter((x) => x.id !== p.id)
+  total.value = Math.max(0, total.value - 1)
+  // 删空当前页且不是第一页时，回退到上一页
+  if (posts.value.length === 0 && pageNum.value > 1) {
+    await onPageChange(pageNum.value - 1)
+  }
 }
 
 /* ---- 评论 ---- */
@@ -791,8 +806,10 @@ async function publish() {
   border-color: var(--hd-primary-200);
   background: var(--hd-primary-50);
 }
-.load-more {
-  text-align: center;
+.pagination {
+  display: flex;
+  justify-content: center;
+  padding: var(--hd-space-2) 0;
 }
 .state-box {
   padding: var(--hd-space-4) 0;
