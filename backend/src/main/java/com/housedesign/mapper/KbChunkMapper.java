@@ -43,7 +43,14 @@ public interface KbChunkMapper extends BaseMapper<KbChunk> {
                         "</script>")
         int insertBatch(@Param("list") List<KbChunk> chunks);
 
-        // 关键词召回：走ngram FULLTEXT，按相关度倒序；只取id/document_id ，正文后续批量回查
+        /**
+         * 关键词召回：走ngram FULLTEXT，按相关度倒序；只取id/document_id ，正文后续批量回查
+         * 
+         * @param query       搜索关键词
+         * @param documentIds 限定文档范围
+         * @param limit       返回结果数量
+         * @return 候选文档列表
+         */
         @Select("<script> " +
                         "select id,document_id from t_kb_chunk " +
                         "where is_active = 1 "

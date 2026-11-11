@@ -15,19 +15,22 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * 知识库重排器：KbReranker
+ * 包含Rerank模型的调用，用于对搜索召回的候选文档进行重排
+ */
 @Slf4j
 @Component
 public class KbReranker {
     private static final String RERANK_PATH = "/services/rerank/text-rerank/text-rerank";
-
-    /** 重排结果：候选下标+相关度分数（0-1） */
-    public record Result(int index, double score) {
-    }
-
     private final WebClient webClient;
     private final String apiKey;
     private final String model;
     private final int timeoutSeconds;
+
+    /** 重排结果：候选下标+相关度分数（0-1） */
+    public record Result(int index, double score) {
+    }
 
     public KbReranker(WebClient.Builder builder,
             @Value("${app.rag.rerank.base-url}") String baseUrl,
@@ -40,6 +43,13 @@ public class KbReranker {
         this.timeoutSeconds = timeoutSeconds;
     }
 
+    /**
+     * 对搜索召回的候选文档进行重排
+     * 
+     * @param query     查询文本
+     * @param documents 候选文档列表
+     * @return 重排结果列表
+     */
     public List<Result> rerank(String query, List<String> documents) {
         if (documents == null || documents.isEmpty()) {
             return List.of();

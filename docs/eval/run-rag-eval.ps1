@@ -38,18 +38,22 @@ $authHeader = @{ Authorization = "Bearer $($login.data)" }
 # 2. 读取评测集（UTF-8，避免中文标题被读坏）
 $cases = Get-Content -Path $EvalFile -Raw -Encoding UTF8 | ConvertFrom-Json
 
-# 3. 逐条检索
+# 3. 逐条检索（同时记录单次耗时，用于统计 P50/P95）
 $recallPass = 0
 $recallTotal = 0
 $rejectPass = 0
 $rejectTotal = 0
 $failures = @()
+$times = @()
 
 foreach ($case in $cases) {
     $bodyHash = @{ query = $case.question; topK = $TopK }
     if ($MinScore -gt 0) { $bodyHash["minScore"] = $MinScore }
     $body = $bodyHash | ConvertTo-Json -Compress
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $res = Invoke-JsonUtf8 -Uri "$BaseUrl/api/kb/search" -Method "Post" -Body $body -Headers $authHeader
+    $sw.Stop()
+    $times += $sw.ElapsedMilliseconds
     $data = $res.data
 
     if ($case.type -eq "answerable") {
@@ -80,10 +84,25 @@ foreach ($case in $cases) {
 $recall = if ($recallTotal -gt 0) { [math]::Round($recallPass / $recallTotal, 4) } else { 0 }
 $reject = if ($rejectTotal -gt 0) { [math]::Round($rejectPass / $rejectTotal, 4) } else { 0 }
 
+# 延迟分位数：升序后取最近秩（ceil(p*n)-1），样本量小也不至于越界
+function Get-Percentile {
+    param([double[]]$Values, [double]$P)
+    if ($Values.Count -eq 0) { return 0 }
+    $sorted = $Values | Sort-Object
+    $idx = [math]::Ceiling($P * $sorted.Count) - 1
+    if ($idx -lt 0) { $idx = 0 }
+    if ($idx -ge $sorted.Count) { $idx = $sorted.Count - 1 }
+    return [int]$sorted[$idx]
+}
+$p50 = Get-Percentile -Values $times -P 0.50
+$p95 = Get-Percentile -Values $times -P 0.95
+$max = if ($times.Count -gt 0) { ($times | Measure-Object -Maximum).Maximum } else { 0 }
+
 Write-Host ""
 Write-Host "==== RAG 评测结果 (topK=$TopK) ===="
 Write-Host ("Recall@$TopK : {0}/{1} = {2}" -f $recallPass, $recallTotal, $recall)
 Write-Host ("拒答率      : {0}/{1} = {2}" -f $rejectPass, $rejectTotal, $reject)
+Write-Host ("延迟(ms)    : P50={0} P95={1} Max={2} (n={3})" -f $p50, $p95, $max, $times.Count)
 if ($failures.Count -gt 0) {
     Write-Host ""
     Write-Host "==== 未通过用例 ===="

@@ -10,6 +10,15 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * 知识库搜索请求参数
+ * 
+ * @param query       搜索关键词
+ * @param kbId        知识库ID
+ * @param topK        返回结果数量
+ * @param documentIds 限定文档范围
+ * @param minScore    相似度下限
+ */
 @Data
 @AllArgsConstructor
 @NoArgsConstructor

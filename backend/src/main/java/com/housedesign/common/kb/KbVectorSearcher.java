@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * Pg向量检索：问题向量->余弦topK
  * KbVectorSearcher
+ * 
  */
 @Component
 @RequiredArgsConstructor
@@ -34,9 +35,9 @@ public class KbVectorSearcher {
     /**
      * 指定文档范围选取余弦topK
      * 
-     * @param vector     问题向量
-     * @param documentId 文档id
-     * @param limit      候选条数
+     * @param vector      问题向量
+     * @param documentIds 文档id列表
+     * @param limit       候选条数
      */
     public List<Candidate> topK(float[] vector, List<Long> documentIds, int limit) {
         if (documentIds == null || documentIds.isEmpty()) {
@@ -64,7 +65,13 @@ public class KbVectorSearcher {
                         rs.getLong("document_id"), rs.getDouble("score")));
     }
 
-    // 关键词候选没有向量分：按chunk_id批量回查余弦，供余弦下限过滤和统一
+    /**
+     * 关键词候选没有向量分：按chunk_id批量回查余弦，供余弦下限过滤和统一
+     * 
+     * @param vector   问题向量
+     * @param chunkIds 分块id列表
+     * @return 分块id -> 余弦相似度
+     */
     public Map<Long, Double> scoresByChunkIds(float[] vector, List<Long> chunkIds) {
         if (chunkIds == null || chunkIds.isEmpty()) {
             return Map.of();

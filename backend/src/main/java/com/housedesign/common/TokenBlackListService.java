@@ -40,7 +40,13 @@ public class TokenBlackListService {
         return KEY_PREFIX + sha256Hex(token);
     }
 
-    // 写黑名单
+    /**
+     * 将JWT添加到黑名单
+     * 黑名单中存储JWT的指纹，过期时间为JWT的过期时间
+     * 过期后，黑名单中的指纹将被删除
+     * 
+     * @param token JWT令牌
+     */
     public void blacklist(String token) {
         Claims claims = jwtUtil.parseToken(token);
         Date expiration = claims.getExpiration();
@@ -53,7 +59,13 @@ public class TokenBlackListService {
         log.info("剩余秒数：{}", ttlMs / 1000);
     }
 
-    // 查黑名单+fail-open
+    /**
+     * 检查JWT是否在黑名单中
+     * 若查询失败，执行fail-open策略，返回false
+     * 
+     * @param token JWT令牌
+     * @return 如果JWT在黑名单中，返回true；否则返回false
+     */
     public boolean isBlacklisted(String token) {
         try {
             Boolean exists = stringRedisTemplate.hasKey(buildKey(token));
